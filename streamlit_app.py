@@ -51,8 +51,14 @@ st.set_page_config(
 # We build all other paths from this folder, so the app finds its files no matter
 # from which folder it is started (in VS Code or online on Streamlit).
 APP_FOLDER = os.path.dirname(os.path.abspath(__file__))
-DATA_FOLDER = os.path.join(APP_FOLDER, 'data')
 DATABASE_FILE = os.path.join(APP_FOLDER, 'wine_dine.db')
+
+# the data files are either in a folder called 'data' (on our laptops)
+# or directly next to this file (on GitHub, where we uploaded them without the folder)
+if os.path.exists(os.path.join(APP_FOLDER, 'data')):
+    DATA_FOLDER = os.path.join(APP_FOLDER, 'data')
+else:
+    DATA_FOLDER = APP_FOLDER
 
 # the data files the app needs (they are in the folder 'data')
 DATA_FILES = ['winemag-data-130k-v2.csv.zip', 'wine_food_pairings.csv',
@@ -264,8 +270,9 @@ if not os.path.exists(DATABASE_FILE):
             missing_files.append(file_name)
 
     if len(missing_files) > 0:
-        st.error('Some data files are missing in the folder "data": ' + ', '.join(missing_files)
-                 + '. Please upload them (e.g. to GitHub) and start the app again.')
+        st.error('Some data files are missing: ' + ', '.join(missing_files)
+                 + '. Please upload them (e.g. to GitHub, next to streamlit_app.py) '
+                 + 'and start the app again.')
         st.stop()   # stop here - without the data the app cannot work
 
     with st.spinner('Preparing the wine cellar for the first time (about 30 seconds) ...'):
