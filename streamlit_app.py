@@ -96,6 +96,10 @@ KAGGLE_NAME_FIXES = {
 # the address of the Wikipedia API
 WIKIPEDIA_API = 'https://en.wikipedia.org/w/api.php'
 
+# the dataset has prices in US dollars - we show them in Swiss francs
+# (fixed exchange rate, 1 USD = 0.80 CHF)
+USD_TO_CHF = 0.80
+
 
 def load_wines():
     """Read the 130,000 wine reviews and keep only the useful wines and columns."""
@@ -110,6 +114,9 @@ def load_wines():
 
     # wines without a price are useless for a budget filter, so we drop them
     wines = wines.dropna(subset=['price'])
+
+    # convert the prices from US dollars to Swiss francs
+    wines['price'] = (wines['price'] * USD_TO_CHF).round(2)
 
     # keep only the grape varieties that our app can recommend
     wines = wines[wines['variety'].isin(OUR_WINE_TYPES)]
@@ -325,8 +332,8 @@ WINE_NICKNAMES = {
 ALLERGY_OPTIONS = ['Gluten', 'Lactose', 'Eggs', 'Nuts', 'Fish', 'Shellfish', 'Soy']
 PREFERENCE_OPTIONS = ['Meat dish', 'Fish dish', 'Vegetarian', 'Vegan',
                       'High protein', 'Low calorie', 'Quick (under 40 min)']
-BUDGET_OPTIONS = {'Up to $15': 15, 'Up to $30': 30, 'Up to $60': 60,
-                  'Up to $100': 100, 'No limit': 10000}
+BUDGET_OPTIONS = {'Up to CHF 15': 15, 'Up to CHF 30': 30, 'Up to CHF 60': 60,
+                  'Up to CHF 100': 100, 'No limit': 10000}
 OCCASION_OPTIONS = ['Romantic dinner', 'Dinner with friends', 'Family dinner',
                     'Celebration', 'Business dinner', 'Cozy night in']
 FESTIVE_OCCASIONS = ['Romantic dinner', 'Celebration', 'Business dinner']
@@ -779,7 +786,7 @@ def show_wine_details(bottle, wine_type, dish):
     """Show where a wine comes from, how it tastes and why it matches the dish."""
     # AI-generated (Claude) - see AI_USE_LOG.md entry 7
     st.caption(f"{bottle['province']}, {bottle['country']} · {get_vintage(bottle['title'])} · "
-               f"{bottle['winery']} · {bottle['points']} points · ${bottle['price']:.0f}")
+               f"{bottle['winery']} · {bottle['points']} points · CHF {bottle['price']:.0f}")
     st.markdown(f"**Taste:** {WINE_STYLES[wine_type]['taste'].capitalize()}.")
     st.markdown(f"**Why it matches:** {get_why_text(wine_type, dish)}")
     with st.expander('Sommelier notes'):
@@ -880,7 +887,7 @@ def open_dish_window(dish, wine_type, wine_name, price, score):
 def get_share_of_top_wines(wine_type):
     """Return, per price range, how many percent of the wines are rated 90 points or more.
 
-    The result is a dictionary like {'0-20 USD': 8, '20-40 USD': 21, ...}
+    The result is a dictionary like {'0-20 CHF': 8, '20-40 CHF': 21, ...}
     (similar to the frequencies dictionary in the week 4 dice demo).
     """
     # AI-generated (Claude) - see AI_USE_LOG.md entry 3
@@ -891,7 +898,7 @@ def get_share_of_top_wines(wine_type):
                 """, DB, params=[wine_type])
 
     shares = {}
-    # go through the price ranges 0-20, 20-40, 40-60, 60-80 and 80-100 USD
+    # go through the price ranges 0-20, 20-40, 40-60, 60-80 and 80-100 CHF
     for lower in range(0, 100, 20):
         upper = lower + 20
         in_range = wines[(wines['price'] > lower) & (wines['price'] <= upper)]
@@ -899,7 +906,7 @@ def get_share_of_top_wines(wine_type):
         # only calculate a share if there are wines in this range (no division by zero)
         if len(in_range) > 0:
             top_wines = in_range[in_range['points'] >= 90]
-            shares[f'{lower}-{upper} USD'] = round(len(top_wines) / len(in_range) * 100)
+            shares[f'{lower}-{upper} CHF'] = round(len(top_wines) / len(in_range) * 100)
 
     return shares
 
@@ -938,7 +945,7 @@ page = st.sidebar.radio(
 
 st.sidebar.space('large')
 st.sidebar.caption('Wines: 70,000 reviews from Wine Enthusiast (Kaggle). '
-                   'Photos: Wikipedia. Prices in US dollars.')
+                   'Photos: Wikipedia. Prices in Swiss francs (converted from US dollars).')
 
 
 # ===========================================================================
@@ -1184,7 +1191,7 @@ elif page == 'Effortless evening':
             section_label('03 · Your budget')
             st.subheader('How much would you like to spend per bottle?')
             budget_choice = st.pills('Budget', list(BUDGET_OPTIONS.keys()), label_visibility='collapsed', width='stretch', wrap=True)
-            own_budget = st.text_input('Or write your own amount in $', key='own_budget', placeholder='e.g. 25')
+            own_budget = st.text_input('Or write your own amount in CHF', key='own_budget', placeholder='e.g. 25')
             st.space('large')
 
             section_label('04 · Food preferences')
@@ -1209,7 +1216,7 @@ elif page == 'Effortless evening':
 
                 max_price = None
                 if own_budget.strip() != '':
-                    # keep only the digits, e.g. '$25' -> '25'
+                    # keep only the digits, e.g. 'CHF 25' -> '25'
                     digits = ''
                     for character in own_budget:
                         if character.isdigit():
@@ -1303,7 +1310,7 @@ elif page == 'Effortless evening':
                 bottles_needed = math.ceil(answers['guests'] / 2)
                 st.space('small')
                 st.metric('Bottles you need', bottles_needed,
-                          f"about ${bottles_needed * bottle['price']:.0f} in total", delta_color='off',
+                          f"about CHF {bottles_needed * bottle['price']:.0f} in total", delta_color='off',
                           delta_arrow='off')
 
         st.divider()

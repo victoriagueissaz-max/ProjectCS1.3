@@ -94,7 +94,7 @@ kaggle_pairings (wine_type, food_item, ...)                                  –
 ## About the data
 
 - **Wine reviews** – [Kaggle: zynicide/wine-reviews](https://www.kaggle.com/datasets/zynicide/wine-reviews).
-  About 130,000 reviews from *Wine Enthusiast* magazine with price (in US dollars), rating
+  About 130,000 reviews from *Wine Enthusiast* magazine with price (in US dollars, converted to Swiss francs at 1 USD = 0.80 CHF), rating
   (80–100 points), region, producer and a tasting note. We keep only wines with a price and of the
   26 grape varieties that our app recommends (≈70,000 wines).
 - **Wine and food pairings** – [Kaggle: wafaaelhusseini/wine-and-food-pairing-dataset](https://www.kaggle.com/datasets/wafaaelhusseini/wine-and-food-pairing-dataset).
