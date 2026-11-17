@@ -1,0 +1,6 @@
+wine_dine.db
+wine_dine.db.building
+__pycache__/
+.DS_Store
+.vscode/
+.claude/
