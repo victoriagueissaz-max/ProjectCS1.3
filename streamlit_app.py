@@ -204,6 +204,40 @@ def get_image_urls(wiki_pages):
     return photos
 
 
+# AI-generated (Claude) - see AI_USE_LOG.md entry 11
+# for some dishes the main photo of the Wikipedia article does not look good
+# (e.g. 'Rack of lamb' shows raw meat). For these articles we use another
+# photo from the same article instead: {article title: file name on Wikipedia}
+CHOSEN_PHOTOS = {
+    'Rack of lamb': 'File:Outback Steakhouse rack of lamb.JPG',
+}
+
+
+def get_file_url(file_name):
+    """Ask the Wikipedia API for the web address (URL) of one photo file, 800 pixels wide.
+
+    Returns '' if Wikipedia does not answer.
+    """
+    # AI-generated (Claude) - see AI_USE_LOG.md entry 11
+    parameters = {
+        'action': 'query',
+        'prop': 'imageinfo',
+        'iiprop': 'url',
+        'iiurlwidth': 800,
+        'titles': file_name,
+        'format': 'json',
+    }
+    headers = {'User-Agent': 'WineAndDine-StudentProject/1.0'}
+    try:
+        response = requests.get(WIKIPEDIA_API, params=parameters, headers=headers, timeout=20)
+        data = response.json()
+        # the answer looks like: {'query': {'pages': {'-1': {'imageinfo': [{'thumburl': URL}]}}}}
+        page = list(data['query']['pages'].values())[0]
+        return page['imageinfo'][0]['thumburl']
+    except Exception:
+        return ''     # no internet or no such file - we keep the normal photo
+
+
 def add_dish_images(dishes):
     """Add a column 'image_url' with a Wikipedia photo to the dishes table."""
     # AI-generated (Claude) - see AI_USE_LOG.md entry 6
@@ -215,6 +249,12 @@ def add_dish_images(dishes):
         group = all_pages[start:start + 30]
         photos.update(get_image_urls(group))   # add the new photos to the dictionary
         time.sleep(1)
+
+    # replace the photos we do not like with the photos we chose ourselves
+    for wiki_page, file_name in CHOSEN_PHOTOS.items():
+        url = get_file_url(file_name)
+        if url != '':
+            photos[wiki_page] = url
 
     # look up the photo of every dish in the dictionary ('' if there is none)
     image_urls = []
@@ -297,6 +337,19 @@ if not os.path.exists(DATABASE_FILE):
 # connect to the database
 DB = sqlite3.connect(DATABASE_FILE)
 
+# the profile table holds the nutrition requirements of the user (one row).
+# 'IF NOT EXISTS' creates it only once - also in a database that was built
+# before we added the profile. The lists are stored as text, e.g. 'Gluten;Nuts'
+# AI-generated (Claude) - see AI_USE_LOG.md entry 12
+DB.execute("""CREATE TABLE IF NOT EXISTS profile (
+                  profile_id INTEGER PRIMARY KEY,
+                  diet TEXT,
+                  allergies TEXT,
+                  avoid TEXT,
+                  goals TEXT
+              )""")
+DB.commit()
+
 
 # ===========================================================================
 # DATA THAT EVERY PAGE NEEDS
@@ -341,6 +394,33 @@ WINE_NICKNAMES = {
 ALLERGY_OPTIONS = ['Gluten', 'Lactose', 'Eggs', 'Nuts', 'Fish', 'Shellfish', 'Soy']
 PREFERENCE_OPTIONS = ['Meat dish', 'Fish dish', 'Vegetarian', 'Vegan',
                       'High protein', 'Low calorie', 'Quick (under 40 min)']
+
+# the options of the profile ("My nutrition requirements")
+# AI-generated (Claude) - see AI_USE_LOG.md entry 12
+DIET_OPTIONS = ['No restriction', 'Pescatarian', 'Vegetarian', 'Vegan']
+GOAL_OPTIONS = ['High protein', 'Low calorie', 'Quick (under 40 min)']
+
+# which kinds of dishes (the 'diet' column of the dishes table) every diet may eat
+ALLOWED_DIETS = {
+    'No restriction': ['meat', 'fish', 'vegetarian', 'vegan'],
+    'Pescatarian': ['fish', 'vegetarian', 'vegan'],    # no meat, but fish
+    'Vegetarian': ['vegetarian', 'vegan'],
+    'Vegan': ['vegan'],
+}
+# buttons that make no sense for a diet - we do not show them
+# (e.g. a vegetarian does not need a 'Meat dish' button or a fish allergy button)
+HIDDEN_PREFERENCES = {
+    'No restriction': [],
+    'Pescatarian': ['Meat dish'],
+    'Vegetarian': ['Meat dish', 'Fish dish'],
+    'Vegan': ['Meat dish', 'Fish dish', 'Vegetarian'],
+}
+HIDDEN_ALLERGIES = {
+    'No restriction': [],
+    'Pescatarian': [],
+    'Vegetarian': ['Fish', 'Shellfish'],
+    'Vegan': ['Fish', 'Shellfish', 'Eggs', 'Lactose'],
+}
 BUDGET_OPTIONS = {'Up to CHF 15': 15, 'Up to CHF 30': 30, 'Up to CHF 60': 60,
                   'Up to CHF 100': 100, 'No limit': 10000}
 OCCASION_OPTIONS = ['Romantic dinner', 'Dinner with friends', 'Family dinner',
@@ -669,19 +749,19 @@ def get_vintage(title):
 
 # ---------- finding dishes ---------------------------------------------------
 
-def find_closest_dish(text):
-    """Return the dish that fits a free text description best (or None if nothing fits)."""
-    # AI-generated (Claude) - see AI_USE_LOG.md entry 7
+def find_closest_dish(text, dishes):
+    """Return the dish of the table 'dishes' that fits a free text best (or None if nothing fits)."""
+    # AI-generated (Claude) - see AI_USE_LOG.md entries 7 and 12
 
     # if the user picked a dish from the list, we take it directly
-    if text in list(DISHES['dish']):
-        return DISHES[DISHES['dish'] == text].iloc[0]
+    if text in list(dishes['dish']):
+        return dishes[dishes['dish'] == text].iloc[0]
 
     # otherwise we count for every dish how many words of the text it contains:
     # a word in the name of the dish counts 2 points, a word in the ingredients 1 point
     best_dish = None
     best_points = 0
-    for index, dish in DISHES.iterrows():
+    for index, dish in dishes.iterrows():
         points = 0
         for word in text.lower().split():
             if len(word) < 3 or word in STOP_WORDS:
@@ -765,6 +845,87 @@ def filter_dishes(dishes, allergies, other_allergies, preferences, own_wish):
         if fits_allergies(dish, allergies, other_allergies) and fits_preferences(dish, preferences, own_wish):
             kept.append(dish)
     return pd.DataFrame(kept)
+
+
+# ---------- the profile (nutrition requirements) ------------------------------
+
+def load_profile():
+    """Read the nutrition requirements of the user from the database.
+
+    Returns a dictionary, e.g.
+    {'diet': 'Vegetarian', 'allergies': ['Nuts'], 'avoid': 'mushrooms', 'goals': ['Low calorie']}
+    If the user has not saved a profile yet, nothing is restricted.
+    """
+    # AI-generated (Claude) - see AI_USE_LOG.md entry 12
+    cursor = DB.cursor()
+    cursor.execute('SELECT diet, allergies, avoid, goals FROM profile WHERE profile_id = 1')
+    row = cursor.fetchone()    # one row as a tuple, or None if there is none
+
+    if row is None:
+        return {'diet': 'No restriction', 'allergies': [], 'avoid': '', 'goals': []}
+
+    # 'Gluten;Nuts' -> ['Gluten', 'Nuts']  ('' -> [])
+    allergies = [item for item in row[1].split(';') if item != '']
+    goals = [item for item in row[3].split(';') if item != '']
+    return {'diet': row[0], 'allergies': allergies, 'avoid': row[2], 'goals': goals}
+
+
+def save_profile(diet, allergies, avoid, goals):
+    """Save the nutrition requirements of the user in the database (replaces the old ones)."""
+    # AI-generated (Claude) - see AI_USE_LOG.md entry 12
+    # INSERT OR REPLACE: if the row with profile_id 1 already exists, it is overwritten
+    cursor = DB.cursor()
+    cursor.execute("""INSERT OR REPLACE INTO profile (profile_id, diet, allergies, avoid, goals)
+                      VALUES (1, ?, ?, ?, ?)""",
+                   (diet, ';'.join(allergies), avoid.strip(), ';'.join(goals)))
+    DB.commit()
+
+
+def fits_diet(dish, diet):
+    """Return True if a dish is allowed for the diet of the user (e.g. 'Vegetarian')."""
+    # AI-generated (Claude) - see AI_USE_LOG.md entry 12
+    return dish['diet'] in ALLOWED_DIETS[diet]
+
+
+def get_profile_dishes(profile, with_allergies):
+    """Return the dishes that fit the profile.
+
+    with_allergies: True  = also leave out dishes with the user's allergies and avoided foods
+                    False = only check the diet (for pages where the user can change the allergies)
+    """
+    # AI-generated (Claude) - see AI_USE_LOG.md entry 12
+    kept = []
+    for index, dish in DISHES.iterrows():
+        if not fits_diet(dish, profile['diet']):
+            continue
+        if with_allergies and not fits_allergies(dish, profile['allergies'], profile['avoid']):
+            continue
+        kept.append(dish)
+    return pd.DataFrame(kept, columns=DISHES.columns)
+
+
+def get_visible_options(options, hidden):
+    """Return the options without the ones that are hidden for the user's diet."""
+    # AI-generated (Claude) - see AI_USE_LOG.md entry 12
+    return [option for option in options if option not in hidden]
+
+
+def describe_profile(profile):
+    """Return a short text about the profile, e.g. 'Vegetarian · no nuts, gluten · low calorie'."""
+    # AI-generated (Claude) - see AI_USE_LOG.md entry 12
+    parts = []
+    if profile['diet'] != 'No restriction':
+        parts.append(profile['diet'])
+    if len(profile['allergies']) > 0:
+        parts.append('no ' + ', '.join(profile['allergies']).lower())
+    if profile['avoid'] != '':
+        parts.append('avoids ' + profile['avoid'])
+    if len(profile['goals']) > 0:
+        parts.append(', '.join(profile['goals']).lower())
+
+    if len(parts) == 0:
+        return 'no restrictions'
+    return ' · '.join(parts)
 
 
 # ---------- saving -----------------------------------------------------------
@@ -917,8 +1078,6 @@ def ask_for_wine(key, ask_details):
                                  placeholder='Choose a grape variety')
         if wine_type is None:
             return None
-    else:
-        st.caption(f'We read this as a **{wine_type}**.')
 
     return {'wine_type': wine_type, 'name': search_text, 'bottle': None}
 
@@ -1088,6 +1247,13 @@ st.sidebar.markdown('<p class="side-title">Please enjoy responsibly</p>', unsafe
 st.sidebar.markdown('Wine & Dine is for adults of legal drinking age.')
 
 
+# the nutrition requirements of the user - every page filters with them
+# AI-generated (Claude) - see AI_USE_LOG.md entry 12
+PROFILE = load_profile()
+st.sidebar.markdown('<p class="side-title">Your profile</p>', unsafe_allow_html=True)
+st.sidebar.markdown(describe_profile(PROFILE).capitalize() + ' – change it under *My profile*.')
+
+
 # ===========================================================================
 # HOME PAGE: big picture, short introduction, the three options
 # ===========================================================================
@@ -1176,6 +1342,10 @@ elif page == "I know what I'm cooking":
     page_header('Find the wine', "I know what I'm cooking",
                 'Tell us what is on the menu, and we will open the right bottle.')
 
+    # this page has no allergy buttons, so we use the whole profile:
+    # only dishes that fit the diet AND contain none of the allergies
+    my_dishes = get_profile_dishes(PROFILE, with_allergies=True)
+
     col_search, col_budget = st.columns([3, 1], gap='large')
     with col_search:
         # a selectbox with accept_new_options=True works like a search bar:
@@ -1183,7 +1353,7 @@ elif page == "I know what I'm cooking":
         # the highlighted proposal - or the user's own text if nothing matches
         meal = st.selectbox(
             'Describe your meal',
-            DISHES['dish'],
+            my_dishes['dish'],
             index=None,
             accept_new_options=True,
             placeholder="Start typing, e.g. 'risotto' or 'salmon'",
@@ -1193,13 +1363,22 @@ elif page == "I know what I'm cooking":
         max_price = BUDGET_OPTIONS[budget_label]
 
     if meal is None:
-        st.caption('Choose one of our 60 dishes, or simply describe your own meal and press Enter.')
+        if len(my_dishes) < len(DISHES):
+            st.caption(f'Choose one of the {len(my_dishes)} dishes that fit your profile '
+                       f'({describe_profile(PROFILE)}), or describe your own meal and press Enter.')
+        else:
+            st.caption(f'Choose one of our {len(DISHES)} dishes, or simply describe your own meal and press Enter.')
     else:
-        dish = find_closest_dish(meal)
+        dish = find_closest_dish(meal, my_dishes)
 
         if dish is None:
-            st.warning(f'Sorry, we do not know "{meal}" yet. Try other words, '
-                       'e.g. the main ingredient (chicken, pasta, tofu ...).')
+            # maybe we know the dish, but the profile does not allow it
+            if find_closest_dish(meal, DISHES) is not None:
+                st.warning(f'We know "{meal}", but it does not fit your profile '
+                           f'({describe_profile(PROFILE)}). You can change it under My profile.')
+            else:
+                st.warning(f'Sorry, we do not know "{meal}" yet. Try other words, '
+                           'e.g. the main ingredient (chicken, pasta, tofu ...).')
         else:
             if dish['dish'] != meal:
                 st.caption(f'The closest dish to "{meal}" that we know is **{dish["dish"]}**.')
@@ -1281,19 +1460,32 @@ elif page == 'I already have a wine':
     my_wine = ask_for_wine('wine', True)
 
     st.space('medium')
+    # the buttons that make sense for the diet of the profile, and the ones that
+    # are selected from the start (default=...) because they are in the profile
+    # AI-generated (Claude) - see AI_USE_LOG.md entry 12
+    allergy_options = get_visible_options(ALLERGY_OPTIONS, HIDDEN_ALLERGIES[PROFILE['diet']])
+    preference_options = get_visible_options(PREFERENCE_OPTIONS, HIDDEN_PREFERENCES[PROFILE['diet']])
+    allergy_defaults = [item for item in PROFILE['allergies'] if item in allergy_options]
+    preference_defaults = [item for item in PROFILE['goals'] if item in preference_options]
+
     section_label('02 · Anything you cannot eat?')
     col_allergies, col_other = st.columns(2, gap='large')
     with col_allergies:
-        allergies = st.pills('Allergies and intolerances', ALLERGY_OPTIONS, selection_mode='multi', width='stretch', wrap=True)
+        allergies = st.pills('Allergies and intolerances', allergy_options, default=allergy_defaults,
+                             selection_mode='multi', width='stretch', wrap=True)
     with col_other:
-        other_allergies = st.text_input('Anything else? (separate with commas)',
+        other_allergies = st.text_input('Anything else? (separate with commas)', value=PROFILE['avoid'],
                                         placeholder='e.g. mushrooms, garlic')
+    if describe_profile(PROFILE) != 'no restrictions':
+        st.caption('Preselected from your profile - you can change it for this search. '
+                   'To change it for good, go to My profile.')
 
     st.space('medium')
     section_label('03 · What do you feel like?')
     col_preferences, col_wish = st.columns(2, gap='large')
     with col_preferences:
-        preferences = st.pills('Preferences', PREFERENCE_OPTIONS, selection_mode='multi', width='stretch', wrap=True)
+        preferences = st.pills('Preferences', preference_options, default=preference_defaults,
+                               selection_mode='multi', width='stretch', wrap=True)
     with col_wish:
         own_wish = st.text_input('Or in your own words', placeholder='e.g. pasta, chicken, soup')
 
@@ -1303,7 +1495,9 @@ elif page == 'I already have a wine':
         st.caption('Tell us your wine above to see the matching dishes.')
     else:
         wine_type = my_wine['wine_type']
-        suitable = filter_dishes(DISHES, allergies, other_allergies, preferences, own_wish)
+        # the diet of the profile always counts; the allergies are the ones selected above
+        suitable = filter_dishes(get_profile_dishes(PROFILE, with_allergies=False),
+                                 allergies, other_allergies, preferences, own_wish)
 
         if len(suitable) == 0:
             st.warning('No dish fits all your wishes. Try removing one of them.')
@@ -1361,8 +1555,10 @@ elif page == 'Effortless evening':
 
     def choose_dish(answers, already_shown):
         """Return a random main course that fits the answers (one we did not show yet)."""
-        # AI-generated (Claude) - see AI_USE_LOG.md entry 7
-        mains = DISHES[DISHES['course'] == 'main']
+        # AI-generated (Claude) - see AI_USE_LOG.md entries 7 and 12
+        # this page does not ask about allergies, so we use the whole profile
+        my_dishes = get_profile_dishes(PROFILE, with_allergies=True)
+        mains = my_dishes[my_dishes['course'] == 'main']
         candidates = filter_dishes(mains, [], '', answers['preferences'], answers['own_preference'])
         if len(candidates) == 0:
             return None
@@ -1416,8 +1612,13 @@ elif page == 'Effortless evening':
 
             section_label('04 · Food preferences')
             st.subheader('Any wishes for the food?')
-            preferences = st.pills('Preferences', PREFERENCE_OPTIONS, selection_mode='multi',
+            # only the buttons that make sense for the diet; the goals of the profile are preselected
+            preference_options = get_visible_options(PREFERENCE_OPTIONS, HIDDEN_PREFERENCES[PROFILE['diet']])
+            preferences = st.pills('Preferences', preference_options, selection_mode='multi',
+                                   default=[item for item in PROFILE['goals'] if item in preference_options],
                                    label_visibility='collapsed', width='stretch', wrap=True)
+            if describe_profile(PROFILE) != 'no restrictions':
+                st.caption(f'We only suggest dishes that fit your profile: {describe_profile(PROFILE)}.')
             own_preference = st.text_input('Or in your own words', key='own_preference',
                                            placeholder='e.g. something with mushrooms')
             st.space('large')
@@ -1543,9 +1744,13 @@ elif page == 'Effortless evening':
         with col_again:
             if st.button('Generate again', icon=':material/refresh:', width='stretch'):
                 new_dish_id = choose_dish(answers, evening['shown'])
-                evening['dish_id'] = new_dish_id
-                evening['shown'].append(new_dish_id)
-                st.rerun()
+                # None can happen if the profile was changed in the meantime
+                if new_dish_id is None:
+                    st.warning('No other dish fits your answers and your profile.')
+                else:
+                    evening['dish_id'] = new_dish_id
+                    evening['shown'].append(new_dish_id)
+                    st.rerun()
         with col_back:
             if st.button('Change my answers', icon=':material/arrow_back:', width='stretch'):
                 st.session_state['evening'] = None
@@ -1558,7 +1763,51 @@ elif page == 'Effortless evening':
 # AI-generated (Claude) - see AI_USE_LOG.md entry 7
 elif page == 'My profile':
     page_header('Your collection', 'My profile',
-                'Every pairing you saved, with its recipe and grocery list.')
+                'Your nutrition requirements, and every pairing you saved.')
+
+    # ----- my nutrition requirements ---------------------------------------
+    # AI-generated (Claude) - see AI_USE_LOG.md entry 12
+    # st.form groups the fields: nothing happens until the user clicks "Save"
+    # (otherwise Streamlit would reload the page after every single click)
+    section_label('My nutrition requirements')
+    st.caption('Saved once, used everywhere: every page only shows dishes that fit your profile, '
+               'and your choices are preselected.')
+
+    if st.session_state.get('profile_saved', False):
+        st.success('Your profile is saved - the whole app now uses it.')
+        st.session_state['profile_saved'] = False
+
+    with st.form('profile_form', border=True):
+        st.markdown('**Diet**')
+        diet = st.segmented_control('Diet', DIET_OPTIONS, default=PROFILE['diet'],
+                                    label_visibility='collapsed', width='stretch')
+        st.caption('Pescatarian: no meat, but fish · Vegetarian: no meat, no fish · '
+                   'Vegan: no animal products at all')
+        st.space('small')
+
+        col_allergies, col_avoid = st.columns(2, gap='large')
+        with col_allergies:
+            allergies = st.pills('Allergies and intolerances', ALLERGY_OPTIONS, default=PROFILE['allergies'],
+                                 selection_mode='multi', width='stretch', wrap=True)
+        with col_avoid:
+            avoid = st.text_input('Other foods I do not eat (separate with commas)', value=PROFILE['avoid'],
+                                  placeholder='e.g. mushrooms, pork, coriander')
+        st.space('small')
+
+        goals = st.pills('My goals (preselected, but you can switch them off for a search)', GOAL_OPTIONS,
+                         default=PROFILE['goals'], selection_mode='multi', width='stretch', wrap=True)
+        st.space('small')
+
+        if st.form_submit_button('Save my profile', type='primary', icon=':material/check:'):
+            # if the user clicked the selected diet again, nothing is selected -> no restriction
+            if diet is None:
+                diet = 'No restriction'
+            save_profile(diet, allergies, avoid, goals)
+            st.session_state['profile_saved'] = True
+            st.rerun()   # reload, so the sidebar and every page use the new profile
+
+    # ----- the saved pairings ----------------------------------------------
+    st.divider()
 
     # JOIN: we need the saved pairing AND the information about its dish
     saved = pd.read_sql("""

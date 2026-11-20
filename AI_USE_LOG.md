@@ -174,6 +174,39 @@ Claude Code desktop app.
   time, started with a missing data file, and clicked through all four pages.
 - **What we checked / changed:** [...]
 
+## Entry 11 – Small fixes: dish photo and wine caption (AI-generated code)
+
+- **Prompt (summary):** "Remove the line 'We read this as a ...'" and "For the rack of lamb a raw
+  image is used - find another image of lamb rack in the Wikipedia API."
+- **What the AI changed:** removed the caption in `ask_for_wine()`. For the photo: the main image of
+  the Wikipedia article "Rack of lamb" shows raw meat, so the AI added the dictionary
+  `CHOSEN_PHOTOS` and the function `get_file_url()`, which asks the Wikipedia API for another photo
+  of the same article (a cooked rack of lamb) and uses it instead.
+- **What we checked / changed:** [...]
+
+## Entry 12 – "My nutrition requirements" in the profile (AI-generated code)
+
+- **Prompt (summary):** "In the profile section add a 'my nutrition requirements' section where the
+  user can say if they are allergic to something or vegan etc., and the whole website filters for
+  this profile: some fields are always preselected, and for a vegetarian the meat buttons are not shown."
+- **What the AI generated / changed:**
+  - A new table `profile` in the database (one row: diet, allergies, avoided foods, goals),
+    created with `CREATE TABLE IF NOT EXISTS`, and the functions `load_profile()`, `save_profile()`,
+    `fits_diet()`, `get_profile_dishes()`, `get_visible_options()` and `describe_profile()`.
+  - A form on the "My profile" page (diet, allergies, other foods, goals) and a short summary of the
+    profile in the sidebar.
+  - **The diet is always applied:** dishes that do not fit it are never shown, and buttons that make
+    no sense are hidden (e.g. "Meat dish" and the fish allergy for a vegetarian).
+  - **Allergies, avoided foods and goals** are preselected on the pages that ask for them ("I already
+    have a wine", "Effortless evening") and can be switched off for one search. On the pages that do
+    not ask for them ("I know what I'm cooking" and the dish of "Effortless evening") they are always
+    applied.
+- **How it was tested:** with Streamlit's test tool (`AppTest`): all four pages without a profile,
+  then with a vegetarian / nut allergy / no mushrooms / low calorie profile (27 of 60 dishes left,
+  no meat or fish buttons, values preselected), saving the form, and planning an evening with a
+  vegan profile.
+- **What we checked / changed:** [...]
+
 ---
 
 ## Reflection for the video (to fill in at the end of the project)
