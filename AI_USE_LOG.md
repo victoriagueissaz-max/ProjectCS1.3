@@ -456,6 +456,38 @@ Claude Code desktop app.
   until all were shown), changing the profile to vegan; the bottle was rendered as an image and checked.
 - **What we checked / changed:** [...]
 
+## Entry 27 – Bug fix: "Generate again" did not change the dishes (AI-generated code)
+
+- **Problem we reported:** "When I press the Generate again button it does not generate again."
+- **What the AI found:** in a real browser (Chrome, controlled by a test script) the button worked
+  locally but not online. The online app has a saved profile with dietary restrictions that only allow
+  two main courses. The code from entry 26 only showed new dishes when at least five main courses had
+  not been shown yet - with this profile that was never the case, so the same dishes came back.
+- **What the AI changed:** `recommend_dishes()` now sorts by: main courses first, then dishes not
+  shown yet, then similarity. With enough main courses, it shows five new ones each time; with fewer
+  main courses, these are always shown and the other places rotate through the starters and desserts.
+  It starts from the beginning only when everything was shown. If no other dish fits the profile at
+  all, the app says "These are all the dishes that fit your dietary restrictions."
+- **How it was tested:** `AppTest` without a profile (always five new main courses), with Vegan + soy
+  (the starters change) and with Vegan + soy + gluten (only five dishes fit: the message is shown);
+  in Chrome locally with a restrictive profile, and the online app was checked before the fix.
+- **What we checked / changed:** [...]
+
+## Entry 28 – "Our classics" on "I know what I'm cooking" (AI-generated code)
+
+- **Prompt (summary):** "Under I know what I'm cooking add Our classics: meat dishes with 10 meat
+  dishes (only the image and the name), fish/seafood with 10 dishes and vegetarian with 10 dishes."
+- **What the AI changed:** below the search bar, as long as no dish is chosen, the page shows
+  "Our classics" in three groups (`CLASSICS`): Meat dishes, Fish & seafood and Vegetarian (vegan
+  dishes count as vegetarian), 10 dishes each, five per row with photo and name. A click on the name
+  puts the dish into the search bar (`choose_meal()`), and the wine pairing appears. The profile
+  still counts: groups that do not fit the diet are hidden, and if an allergy removes some classics,
+  `get_classics()` fills the gaps with other dishes of the same group.
+- **How it was tested:** `AppTest` (30 classics without a profile; a click shows the pairing;
+  vegetarian + gluten shows only the Vegetarian group with 10 gluten-free dishes) and screenshots
+  in Chrome.
+- **What we checked / changed:** [...]
+
 ---
 
 ## Reflection for the video (to fill in at the end of the project)

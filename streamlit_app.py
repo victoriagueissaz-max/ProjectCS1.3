@@ -458,6 +458,22 @@ DONENESS_DISHES = {
 # minced meat is not rested, and it is only safe when it is cooked through
 MINCED_MEAT_DISHES = ['Cheeseburger']
 
+# "Our classics" on the page "I know what I'm cooking": 10 well-known dishes per group
+# AI-generated (Claude) - see AI_USE_LOG.md entry 28
+CLASSICS = {
+    'Meat dishes': ['Grilled steak', 'Rack of lamb', 'Beef bourguignon', 'Wiener schnitzel',
+                    'Roast chicken', "Duck à l'orange", 'Ossobuco', 'Coq au vin',
+                    'Zürcher Geschnetzeltes', 'Lasagna'],
+    'Fish & seafood': ['Paella', 'Moules-frites', 'Fish and chips', 'Sushi platter',
+                       'Spaghetti alle vongole', 'Gravlax', 'Ceviche', 'Garlic prawns',
+                       'Prawn cocktail', 'Oysters Rockefeller'],
+    'Vegetarian': ['Mushroom risotto', 'Pizza Margherita', 'Eggplant parmigiana', 'Cheese fondue',
+                   'Raclette', 'Ratatouille', 'Pasta alla Norma', 'Mac and cheese',
+                   'Thai green curry with tofu', 'Chickpea curry'],
+}
+# which dishes (the 'diet' column) belong to each group - vegan dishes are vegetarian too
+CLASSIC_DIETS = {'Meat dishes': ['meat'], 'Fish & seafood': ['fish'], 'Vegetarian': ['vegetarian', 'vegan']}
+
 
 # ===========================================================================
 # STYLE: a few extra design rules (CSS) that the theme file cannot set
@@ -1050,6 +1066,7 @@ def recommend_dishes(saved, profile, how_many, already_shown):
     Main courses come first. Among them, the dishes most similar to the dishes
     the user saved win. Without saved dishes we pick dishes that fit the profile.
     already_shown: dish_ids we do not want to show again ("Generate again")
+    Returns the dishes and True if we had to start from the beginning (everything was shown).
     """
     # AI-generated (Claude) - see AI_USE_LOG.md entries 13, 23 and 26
     # one text per dish: name, ingredients, course and diet
@@ -1074,16 +1091,25 @@ def recommend_dishes(saved, profile, how_many, already_shown):
     candidates['similarity'] = similarity
     candidates = candidates[candidates['dish_id'].isin(allowed['dish_id']) & ~is_saved]
 
-    # leave out the dishes that were already shown - unless there are not enough
-    # main courses left: then we start again from the beginning
-    not_shown = candidates[~candidates['dish_id'].isin(already_shown)]
-    if (not_shown['course'] == 'main').sum() >= how_many:
-        candidates = not_shown
-
-    # main courses first, then the most similar dishes
     candidates['is_main'] = candidates['course'] == 'main'
-    candidates = candidates.sort_values(['is_main', 'similarity'], ascending=[False, False])
-    return candidates.head(how_many)
+    candidates['is_new'] = ~candidates['dish_id'].isin(already_shown)
+
+    # are there enough dishes left that were not shown yet? If not, we start from the beginning.
+    # - enough main courses for the profile: we need 5 new main courses
+    # - fewer main courses (e.g. vegan and allergic): all main courses are always shown,
+    #   and the other places are filled with new starters and desserts
+    number_of_mains = candidates['is_main'].sum()
+    if number_of_mains >= how_many:
+        enough_new = (candidates['is_main'] & candidates['is_new']).sum() >= how_many
+    else:
+        enough_new = (~candidates['is_main'] & candidates['is_new']).sum() >= how_many - number_of_mains
+    started_over = not enough_new
+    if started_over:
+        candidates['is_new'] = True
+
+    # main courses first, then the dishes not shown yet, then the most similar dishes
+    candidates = candidates.sort_values(['is_main', 'is_new', 'similarity'], ascending=[False, False, False])
+    return candidates.head(how_many), started_over
 
 
 def plan_next_meals(saved, profile, already_shown):
@@ -1093,7 +1119,7 @@ def plan_next_meals(saved, profile, already_shown):
     saves or removes a wine. Only "Generate again" calculates new recommendations.
     """
     # AI-generated (Claude) - see AI_USE_LOG.md entry 26
-    dish_tips = recommend_dishes(saved, profile, 5, already_shown)
+    dish_tips, started_over = recommend_dishes(saved, profile, 5, already_shown)
     my_taste = get_my_wine_taste(saved)
 
     # the budget per bottle: the most expensive saved bottle (CHF 30 if we do not know it)
@@ -1112,8 +1138,8 @@ def plan_next_meals(saved, profile, already_shown):
         meals.append({'dish_id': int(dish['dish_id']), 'wines': wines})
 
     new_ids = [meal['dish_id'] for meal in meals]
-    # if a dish comes again, we started from the beginning - so we also start a new list
-    if any(dish_id in already_shown for dish_id in new_ids):
+    # if we started from the beginning, we also start a new list of shown dishes
+    if started_over:
         already_shown = []
     return {'meals': meals,
             'shown': list(already_shown) + new_ids,
@@ -1155,6 +1181,29 @@ def remove_favorite(dish_id, wine_name):
 
 
 # ---------- pieces of the page that we use several times ----------------------
+
+def get_classics(group, dishes):
+    """Return up to 10 classic dishes of a group ('Meat dishes', ...) that are in the table 'dishes'.
+
+    First our hand-picked classics; if the profile removes some of them (e.g. an allergy),
+    other dishes of the same group fill the gaps (main courses first).
+    """
+    # AI-generated (Claude) - see AI_USE_LOG.md entry 28
+    in_group = dishes[dishes['diet'].isin(CLASSIC_DIETS[group])].copy()
+    picked = CLASSICS[group]
+
+    # position in our list of classics (dishes that are not in the list come at the end)
+    in_group['position'] = [picked.index(name) if name in picked else 100 for name in in_group['dish']]
+    in_group['is_main'] = in_group['course'] == 'main'
+    in_group = in_group.sort_values(['position', 'is_main'], ascending=[True, False])
+    return in_group.head(10)
+
+
+def choose_meal(dish_name):
+    """Put a dish into the search bar of "I know what I'm cooking" (when a classic is clicked)."""
+    # AI-generated (Claude) - see AI_USE_LOG.md entry 28
+    st.session_state['meal'] = dish_name
+
 
 def wine_bottle(number):
     """Return a small wine bottle (drawn as SVG) with a number on its label, as HTML."""
@@ -1713,10 +1762,33 @@ elif page == "I know what I'm cooking":
             index=None,
             accept_new_options=True,
             placeholder='Start typing',
+            key='meal',       # so that a click on a classic can put the dish here
         )
     with col_budget:
         budget_label = st.selectbox('Budget per bottle', list(BUDGET_OPTIONS.keys()), index=1)
         max_price = BUDGET_OPTIONS[budget_label]
+
+    # ----- our classics: shown as long as no dish is chosen ------------------
+    # AI-generated (Claude) - see AI_USE_LOG.md entry 28
+    if meal is None:
+        st.space('medium')
+        st.header('Our classics', anchor=False)
+        for group in CLASSICS:
+            classics = get_classics(group, my_dishes)
+            if len(classics) == 0:
+                continue          # e.g. no meat dishes for a vegetarian
+            st.space('small')
+            st.subheader(group, anchor=False)
+            # 5 dishes per row: photo and name (a click on the name chooses the dish)
+            number = 0
+            for index, dish in classics.iterrows():
+                if number % 5 == 0:
+                    row = st.columns(5, gap='medium')
+                with row[number % 5]:
+                    show_dish_photo(dish, 150)
+                    st.button(dish['dish'], key=f"classic_{dish['dish_id']}", type='tertiary',
+                              on_click=choose_meal, args=[dish['dish']])
+                number += 1
 
     if meal is not None:
         dish = find_closest_dish(meal, my_dishes)
@@ -2235,9 +2307,16 @@ elif page == 'My profile':
                 number += 1
 
             st.space('medium')
+            # if "Generate again" found the same dishes, these are all dishes that fit the profile
+            if plan.get('nothing_new', False):
+                st.caption('These are all the dishes that fit your dietary restrictions.')
             if st.button('Generate again', icon=':material/refresh:', width='stretch'):
                 with st.spinner('Loading'):
-                    st.session_state['next_meal'] = plan_next_meals(saved, PROFILE, plan['shown'])
+                    new_plan = plan_next_meals(saved, PROFILE, plan['shown'])
+                old_ids = sorted(meal['dish_id'] for meal in plan['meals'])
+                new_ids = sorted(meal['dish_id'] for meal in new_plan['meals'])
+                new_plan['nothing_new'] = (old_ids == new_ids)
+                st.session_state['next_meal'] = new_plan
                 st.rerun()
 
     # ----- box 3: my favorites ---------------------------------------------
