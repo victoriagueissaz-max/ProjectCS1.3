@@ -1427,34 +1427,7 @@ def open_dish_window(dish, wine_type, wine_name, price, score):
     show_recipe(dish, 'dialog')
 
 
-# ---------- data for the charts ------------------------------------------------
-
-def get_share_of_top_wines(wine_type):
-    """Return, per price range, how many percent of the wines are rated 90 points or more.
-
-    The result is a dictionary like {'0-20 CHF': 8, '20-40 CHF': 21, ...}
-    (similar to the frequencies dictionary in the week 4 dice demo).
-    """
-    # AI-generated (Claude) - see AI_USE_LOG.md entry 3
-    wines = pd.read_sql("""
-                SELECT price, points
-                FROM wines
-                WHERE variety = ? AND price <= 100
-                """, DB, params=[wine_type])
-
-    shares = {}
-    # go through the price ranges 0-20, 20-40, 40-60, 60-80 and 80-100 CHF
-    for lower in range(0, 100, 20):
-        upper = lower + 20
-        in_range = wines[(wines['price'] > lower) & (wines['price'] <= upper)]
-
-        # only calculate a share if there are wines in this range (no division by zero)
-        if len(in_range) > 0:
-            top_wines = in_range[in_range['points'] >= 90]
-            shares[f'{lower}-{upper} CHF'] = round(len(top_wines) / len(in_range) * 100)
-
-    return shares
-
+# ---------- data for the chart -------------------------------------------------
 
 def get_top_wines_by_country(wine_type):
     """Return, per country, how many percent of the wines of one type are rated 90+ points."""
@@ -1883,15 +1856,6 @@ elif page == "I know what I'm cooking":
                     st.subheader(my_wine['name'])
                     show_match_bar(my_score)
                     st.markdown(f"**Why:** {get_why_text(my_wine['wine_type'], dish)}")
-
-            # chart (visualization): is a more expensive wine really better?
-            best_wine = top_wines.iloc[0]['wine_type']
-            st.divider()
-            with st.expander(f'The numbers behind it: is a more expensive {best_wine} really better?'):
-                st.write(f'How many percent of the {best_wine} wines in each price range '
-                         'are rated "outstanding" (90 points or more)?')
-                st.bar_chart(get_share_of_top_wines(best_wine), color='#9C8556',
-                             x_label='Price per bottle', y_label='% rated 90+ points')
 
 
 # ===========================================================================

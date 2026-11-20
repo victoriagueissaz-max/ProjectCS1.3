@@ -521,6 +521,16 @@ Claude Code desktop app.
   no match bar before opening, all details after opening.
 - **What we checked / changed:** [...]
 
+## Entry 31 – Chart "Is a more expensive wine really better?" removed (AI-generated code)
+
+- **Prompt (summary):** "The numbers behind it: is a more expensive Cabernet Sauvignon really better?
+  - remove this part."
+- **What the AI changed:** removed the expander with the chart from the page "I know what I'm cooking"
+  and the function `get_share_of_top_wines()`, which was only used there. The chart "Where does the
+  best wine come from?" on the page "I already have a wine" stays (data visualization requirement).
+  README updated.
+- **What we checked / changed:** [...]
+
 ---
 
 ## Reflection for the video (to fill in at the end of the project)

@@ -78,7 +78,7 @@ Both are set in `.streamlit/config.toml`:
 |---|-------------|-------------------------|
 | 1 | Clear problem | "Which wine goes with my dinner – and which dinner goes with my wine?" |
 | 2 | Data from an API / database | **Database:** all data comes from the SQLite database `wine_dine.db` (≈70,000 real wines, 60 dishes, 180 pairings), read with SQL (`SELECT`, `JOIN`, `GROUP BY`, `LIKE`) and written with `INSERT` / `DELETE` (saved pairings). **API:** the app gets the dish photos from the **Wikipedia API** when it builds its database |
-| 3 | Data visualization | The **match bars** (1–100, from dark green to orange), "Is a more expensive wine really better?" (% of top wines per price range) and "Where does the best wine come from?" (% of top wines per country) |
+| 3 | Data visualization | The **match bars** (1–100, from dark green to orange) and "Where does the best wine come from?" (% of top wines per country) |
 | 4 | User interaction | Search bar with suggestions, wine search by name, year and producer, "In the mood for" buttons, pop-up window with recipe, four-question planner with "Generate again", saving and removing pairings, a profile with dietary restrictions (diet, allergies) that filters every page |
 | 5 | Machine learning | **"Your next meal" on My profile** (scikit-learn, content-based recommendation): the ingredients of the 60 dishes and the tasting notes of all 70,000 wines are turned into numbers with **TF-IDF**. The user's taste is the average of their saved pairings; **cosine similarity** finds the five most similar dishes (within the dietary preferences) and, for each of their three best grapes, the bottle whose tasting note is closest to the saved wines. The match score `predict_match_score()` still uses simple rules |
 | 6 | Documented code | Every function has a docstring and every block has comments |
@@ -158,7 +158,7 @@ user clicks or changes something** (this is how Streamlit works). In order:
    - `fits_allergies` / `fits_preferences` / `filter_dishes` – the filters of page 2 and 3
    - `save_favorite` – adds a row to the `favorites` table (`INSERT`)
    - `show_recipe`, `show_wine_details`, `ask_for_wine`, `open_dish_window` – pieces of the pages
-   - `get_share_of_top_wines` / `get_top_wines_by_country` – the data for the two charts
+   - `get_top_wines_by_country` – the data for the chart
 5. **Sidebar** – the name of the app and the page selection.
 6. **Pages** – an `if / elif` block shows the page the user selected.
 7. **Close the database.**
