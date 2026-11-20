@@ -497,12 +497,28 @@ Claude Code desktop app.
   to each other with a big heading; below each heading the 10 names are listed one below the other
   in a box with a fixed height (`st.container(height=290)`), which the user scrolls through. The names
   are separated by thin lines (CSS) and still choose the dish with a click.
-- **Change afterwards:** "Or choose from our classics" in the same small font as the label
-  "Describe your meal" (CSS class `classics-title`).
+- **Change afterwards:** we tried "Or choose from our classics" in the small font of the label
+  "Describe your meal", but went back to the heading in the font of the page title (a bit smaller).
 - **Other photo for Rack of lamb:** we compared four cooked rack-of-lamb photos from Wikimedia Commons
   and chose "Roasted rack of lamb with potato gratin and ratatouille main course.jpg" (`CHOSEN_PHOTOS`).
 - **How it was tested:** in Chrome: screenshot, scrolling inside the meat box (290 px visible of
   599 px), click on "Ossobuco" shows its pairing.
+- **What we checked / changed:** [...]
+
+## Entry 30 – My favorites: wine and match score only in the details (AI-generated code)
+
+- **Prompt (summary):** "Under My favorites there is only one sentence about the wine and one about why
+  it matches, and the 0-100 mark does not make sense there. Call the toggle 'Recipe, grocery list, wine
+  and match score', show the match score only when it is opened, and describe the wine better."
+- **What the AI changed:** a favorite now shows only the photo, the dish with the grape, the wine name,
+  the date and the Remove button. The toggle "Recipe, grocery list, wine and match score" shows on the
+  left *The wine*: name, region, country, vintage, producer, points and price (`find_wine_by_title()`),
+  the style (`describe_wine_style()`, e.g. "Red wine · medium-bodied"), the taste of the grape and the
+  sommelier's tasting note; on the right the *Match score* with its bar and why it matches; below the
+  recipe and the grocery list. For a wine the user typed in (not in our database) the app shows the
+  style and the taste of the grape.
+- **How it was tested:** in Chrome with two favorites (a bottle from the database and a wine typed in):
+  no match bar before opening, all details after opening.
 - **What we checked / changed:** [...]
 
 ---

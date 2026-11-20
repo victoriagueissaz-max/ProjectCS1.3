@@ -566,7 +566,6 @@ st.markdown("""
                                          border-radius: 0; padding: 0.55rem 0; }
     [class*="st-key-classics_"] button p { font-size: 1.05rem; }
     [class*="st-key-classics_"] button:hover p { color: #9C8556; }
-    .classics-title { font-size: 0.875rem; margin-bottom: 0.25rem; }
     /* the dark band with the numbers at the end of the home page */
     .home-band { width: 100vw; margin-left: calc(50% - 50vw); margin-top: 5rem; background: #14110F;
                  color: #EDE5D6; padding: 4.5rem 1rem; display: flex; justify-content: center;
@@ -1177,6 +1176,26 @@ def save_favorite(dish, wine_type, wine_name, price, score):
     connection.close()
 
 
+def find_wine_by_title(title):
+    """Return the wine with exactly this name from the wines table (or None, e.g. for a wine the user typed in)."""
+    # AI-generated (Claude) - see AI_USE_LOG.md entry 30
+    wines = pd.read_sql("""SELECT title, variety, country, province, winery, points, price, description
+                           FROM wines WHERE title = ?""", DB, params=[title])
+    if len(wines) == 0:
+        return None
+    return wines.iloc[0]
+
+
+def describe_wine_style(wine_type):
+    """Return the style of a wine type in words, e.g. 'Red wine · medium-bodied'."""
+    # AI-generated (Claude) - see AI_USE_LOG.md entry 30
+    style = WINE_STYLES[wine_type]
+    colours = {'red': 'Red wine', 'white': 'White wine', 'rosé': 'Rosé', 'sparkling': 'Sparkling wine',
+               'sweet': 'Sweet wine'}
+    bodies = {1: 'light', 2: 'medium-bodied', 3: 'full-bodied'}
+    return f"{colours.get(style['color'], 'Wine')} · {bodies.get(int(style['body']), '')}"
+
+
 def remove_favorite(dish_id, wine_name):
     """Remove a saved dish and wine combination from the favorites table."""
     # AI-generated (Claude) - see AI_USE_LOG.md entry 26
@@ -1781,8 +1800,8 @@ elif page == "I know what I'm cooking":
     # in a box with a fixed height that the user scrolls through
     if meal is None:
         st.space('medium')
-        # the same small font as the label 'Describe your meal' above the search bar
-        st.markdown('<p class="classics-title">Or choose from our classics</p>', unsafe_allow_html=True)
+        st.header('Or choose from our classics', anchor=False)
+        st.space('small')
 
         # only the groups that fit the profile (e.g. no meat dishes for a vegetarian)
         groups = [group for group in CLASSICS if len(get_classics(group, my_dishes)) > 0]
@@ -2341,7 +2360,6 @@ elif page == 'My profile':
                     with col_text:
                         st.markdown(f"**{item['dish']}  ·  {item['wine_type']}**")
                         st.caption(f"{item['wine_name']} · {item['saved_on']}")
-                        show_match_bar(item['score'])
                     with col_delete:
                         if st.button('Remove', key=f"delete_{item['saved_id']}", icon=':material/delete:',
                                      type='tertiary'):
@@ -2349,8 +2367,32 @@ elif page == 'My profile':
                             cursor.execute('DELETE FROM favorites WHERE saved_id = ?', (int(item['saved_id']),))
                             DB.commit()
                             st.rerun()   # reload the page so the removed pairing disappears
-                    with st.expander('Recipe, grocery list & why it matches'):
-                        st.markdown(f"**Why it matches:** {get_why_text(item['wine_type'], item)}")
+                    # the details only when the user opens them
+                    # AI-generated (Claude) - see AI_USE_LOG.md entry 30
+                    with st.expander('Recipe, grocery list, wine and match score'):
+                        col_wine, col_match = st.columns([3, 2], gap='large')
+
+                        # the wine: name, origin, style, taste and the sommelier's tasting note
+                        with col_wine:
+                            section_label('The wine')
+                            st.markdown(f"**{item['wine_name']}**")
+                            bottle = find_wine_by_title(item['wine_name'])
+                            if bottle is not None:
+                                st.caption(f"{bottle['province']}, {bottle['country']} · "
+                                           f"{get_vintage(bottle['title'])} · {bottle['winery']} · "
+                                           f"{bottle['points']} points · CHF {bottle['price']:.0f}")
+                            st.markdown(f"**{describe_wine_style(item['wine_type'])}** · {item['wine_type']}")
+                            st.markdown(f"**Taste:** {WINE_STYLES[item['wine_type']]['taste'].capitalize()}.")
+                            if bottle is not None:
+                                st.markdown(f"**Sommelier notes:** {bottle['description']}")
+
+                        # the match score - how well this wine goes with this dish - and why
+                        with col_match:
+                            section_label('Match score')
+                            show_match_bar(item['score'])
+                            st.markdown(f"**Why it matches:** {get_why_text(item['wine_type'], item)}")
+
+                        st.divider()
                         show_recipe(item, f"fav_{item['saved_id']}")
 
 
