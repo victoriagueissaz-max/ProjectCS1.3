@@ -488,6 +488,19 @@ Claude Code desktop app.
   in Chrome.
 - **What we checked / changed:** [...]
 
+## Entry 29 – "Our classics" as scrollable lists (AI-generated code)
+
+- **Prompt (summary):** "Or choose from our classics, then in a bigger font Meat dishes with 10 meat
+  dishes, no images, just the names one below the other, and when you scroll they move; the same
+  for fish and seafood and for vegetarian."
+- **What the AI changed:** the title is now "Or choose from our classics". The three groups stand next
+  to each other with a big heading; below each heading the 10 names are listed one below the other
+  in a box with a fixed height (`st.container(height=290)`), which the user scrolls through. The names
+  are separated by thin lines (CSS) and still choose the dish with a click.
+- **How it was tested:** in Chrome: screenshot, scrolling inside the meat box (290 px visible of
+  599 px), click on "Ossobuco" shows its pairing.
+- **What we checked / changed:** [...]
+
 ---
 
 ## Reflection for the video (to fill in at the end of the project)

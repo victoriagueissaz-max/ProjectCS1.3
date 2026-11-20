@@ -560,6 +560,12 @@ st.markdown("""
     [class*="st-key-profile_box_"] button:hover { border-color: #9C8556; }
     /* the wine bottles with numbers in "My recommendations" (AI-generated, see AI_USE_LOG.md entry 23) */
     .rec-bottle { display: flex; justify-content: center; }
+    /* the lists of "Our classics": the names with a thin line between them
+       (AI-generated, see AI_USE_LOG.md entry 29) */
+    [class*="st-key-classics_"] button { border-bottom: 1px solid #E2D9C8;
+                                         border-radius: 0; padding: 0.55rem 0; }
+    [class*="st-key-classics_"] button p { font-size: 1.05rem; }
+    [class*="st-key-classics_"] button:hover p { color: #9C8556; }
     /* the dark band with the numbers at the end of the home page */
     .home-band { width: 100vw; margin-left: calc(50% - 50vw); margin-top: 5rem; background: #14110F;
                  color: #EDE5D6; padding: 4.5rem 1rem; display: flex; justify-content: center;
@@ -1769,26 +1775,27 @@ elif page == "I know what I'm cooking":
         max_price = BUDGET_OPTIONS[budget_label]
 
     # ----- our classics: shown as long as no dish is chosen ------------------
-    # AI-generated (Claude) - see AI_USE_LOG.md entry 28
+    # AI-generated (Claude) - see AI_USE_LOG.md entries 28 and 29
+    # the groups next to each other; in each group the names one below the other,
+    # in a box with a fixed height that the user scrolls through
     if meal is None:
         st.space('medium')
-        st.header('Our classics', anchor=False)
-        for group in CLASSICS:
-            classics = get_classics(group, my_dishes)
-            if len(classics) == 0:
-                continue          # e.g. no meat dishes for a vegetarian
-            st.space('small')
-            st.subheader(group, anchor=False)
-            # 5 dishes per row: photo and name (a click on the name chooses the dish)
-            number = 0
-            for index, dish in classics.iterrows():
-                if number % 5 == 0:
-                    row = st.columns(5, gap='medium')
-                with row[number % 5]:
-                    show_dish_photo(dish, 150)
-                    st.button(dish['dish'], key=f"classic_{dish['dish_id']}", type='tertiary',
-                              on_click=choose_meal, args=[dish['dish']])
-                number += 1
+        st.header('Or choose from our classics', anchor=False)
+        st.space('small')
+
+        # only the groups that fit the profile (e.g. no meat dishes for a vegetarian)
+        groups = [group for group in CLASSICS if len(get_classics(group, my_dishes)) > 0]
+        if len(groups) > 0:
+            group_columns = st.columns(len(groups), gap='large')
+        for number in range(len(groups)):
+            group = groups[number]
+            with group_columns[number]:
+                st.subheader(group, anchor=False)
+                with st.container(height=290, border=False, key=f'classics_{number}'):
+                    for index, dish in get_classics(group, my_dishes).iterrows():
+                        # a click on the name chooses the dish
+                        st.button(dish['dish'], key=f"classic_{dish['dish_id']}", type='tertiary',
+                                  width='stretch', on_click=choose_meal, args=[dish['dish']])
 
     if meal is not None:
         dish = find_closest_dish(meal, my_dishes)
