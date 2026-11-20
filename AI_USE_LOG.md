@@ -497,6 +497,10 @@ Claude Code desktop app.
   to each other with a big heading; below each heading the 10 names are listed one below the other
   in a box with a fixed height (`st.container(height=290)`), which the user scrolls through. The names
   are separated by thin lines (CSS) and still choose the dish with a click.
+- **Change afterwards:** "Or choose from our classics" in the same small font as the label
+  "Describe your meal" (CSS class `classics-title`).
+- **Other photo for Rack of lamb:** we compared four cooked rack-of-lamb photos from Wikimedia Commons
+  and chose "Roasted rack of lamb with potato gratin and ratatouille main course.jpg" (`CHOSEN_PHOTOS`).
 - **How it was tested:** in Chrome: screenshot, scrolling inside the meat box (290 px visible of
   599 px), click on "Ossobuco" shows its pairing.
 - **What we checked / changed:** [...]

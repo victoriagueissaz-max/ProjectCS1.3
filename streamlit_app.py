@@ -213,7 +213,7 @@ def get_image_urls(wiki_pages):
 # (e.g. 'Rack of lamb' shows raw meat). For these articles we use another
 # photo from the same article instead: {article title: file name on Wikipedia}
 CHOSEN_PHOTOS = {
-    'Rack of lamb': 'File:Outback Steakhouse rack of lamb.JPG',
+    'Rack of lamb': 'File:Roasted rack of lamb with potato gratin and ratatouille main course.jpg',
 }
 
 
@@ -566,6 +566,7 @@ st.markdown("""
                                          border-radius: 0; padding: 0.55rem 0; }
     [class*="st-key-classics_"] button p { font-size: 1.05rem; }
     [class*="st-key-classics_"] button:hover p { color: #9C8556; }
+    .classics-title { font-size: 0.875rem; margin-bottom: 0.25rem; }
     /* the dark band with the numbers at the end of the home page */
     .home-band { width: 100vw; margin-left: calc(50% - 50vw); margin-top: 5rem; background: #14110F;
                  color: #EDE5D6; padding: 4.5rem 1rem; display: flex; justify-content: center;
@@ -1780,8 +1781,8 @@ elif page == "I know what I'm cooking":
     # in a box with a fixed height that the user scrolls through
     if meal is None:
         st.space('medium')
-        st.header('Or choose from our classics', anchor=False)
-        st.space('small')
+        # the same small font as the label 'Describe your meal' above the search bar
+        st.markdown('<p class="classics-title">Or choose from our classics</p>', unsafe_allow_html=True)
 
         # only the groups that fit the profile (e.g. no meat dishes for a vegetarian)
         groups = [group for group in CLASSICS if len(get_classics(group, my_dishes)) > 0]
