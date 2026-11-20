@@ -232,6 +232,18 @@ Claude Code desktop app.
   similar Pinot Noirs); the "Open" button of a recommended dish.
 - **What we checked / changed:** [...]
 
+## Entry 14 – Profile boxes next to each other, opened with a click (AI-generated code)
+
+- **Prompt (summary):** "The three boxes should be next to one another, not below one another. On
+  the box you only see the title; only when you click on it do the options appear."
+- **What the AI changed:** the three boxes are now three buttons in a row (styled as cards with CSS).
+  A click opens the content of the box in full width below the row, a second click closes it.
+  The open box is remembered in `st.session_state['profile_box']` and gets a golden frame.
+- **How it was tested:** with `AppTest`: at the start only the three titles are shown; every box
+  opens its own content; saving the dietary preferences keeps the box open; the "Open" button of a
+  recommendation still works; a second click closes the box.
+- **What we checked / changed:** [...]
+
 ---
 
 ## Reflection for the video (to fill in at the end of the project)

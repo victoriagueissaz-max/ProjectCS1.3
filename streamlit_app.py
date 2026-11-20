@@ -516,6 +516,12 @@ st.markdown("""
                                               font-size: 0.7rem; color: #1E1A16; }
     [class*="st-key-home_option_"] button:hover { background: #1E1A16; }
     [class*="st-key-home_option_"] button:hover p { color: #FBF8F3; }
+    /* the three boxes on the profile page (AI-generated, see AI_USE_LOG.md entry 14) */
+    [class*="st-key-profile_box_"] button { min-height: 140px; border: 1px solid #E2D9C8;
+                                           border-radius: 2px; background: transparent; }
+    [class*="st-key-profile_box_"] button p { font-family: 'Bodoni Moda', serif; font-size: 1.5rem;
+                                             color: #1E1A16; }
+    [class*="st-key-profile_box_"] button:hover { border-color: #9C8556; }
     /* the dark band with the numbers at the end of the home page */
     .home-band { width: 100vw; margin-left: calc(50% - 50vw); margin-top: 5rem; background: #14110F;
                  color: #EDE5D6; padding: 4.5rem 1rem; display: flex; justify-content: center;
@@ -1867,119 +1873,146 @@ elif page == 'My profile':
                 ORDER BY favorites.saved_id DESC
                 """, DB)
 
+    # ----- the three boxes next to each other ---------------------------------
+    # every box shows only its title. A click opens its content below the boxes,
+    # a second click closes it again. The open box is stored in st.session_state.
+    # AI-generated (Claude) - see AI_USE_LOG.md entry 14
+    BOX_TITLES = ['My dietary preferences', 'My recommendations', 'My favorites']
+    BOX_ICONS = [':material/restaurant:', ':material/auto_awesome:', ':material/favorite:']
+    if 'profile_box' not in st.session_state:
+        st.session_state['profile_box'] = None
+
+    def toggle_box(title):
+        """Open a box - or close it if it is already open."""
+        # AI-generated (Claude) - see AI_USE_LOG.md entry 14
+        if st.session_state['profile_box'] == title:
+            st.session_state['profile_box'] = None
+        else:
+            st.session_state['profile_box'] = title
+
+    box_columns = st.columns(3, gap='medium')
+    for number in range(3):
+        with box_columns[number]:
+            st.button(BOX_TITLES[number], key=f'profile_box_{number}', icon=BOX_ICONS[number],
+                      width='stretch', on_click=toggle_box, args=[BOX_TITLES[number]])
+
+    open_box = st.session_state['profile_box']
+    if open_box is not None:
+        # the open box gets a golden frame
+        active = BOX_TITLES.index(open_box)
+        st.markdown(f'<style>.st-key-profile_box_{active} button {{ border-color: #9C8556 !important; '
+                    f'background: #F3ECDF !important; }}</style>', unsafe_allow_html=True)
+        st.space('small')
+
     # ----- box 1: my dietary preferences -----------------------------------
     # st.form groups the fields: nothing happens until the user clicks "Save"
     # (otherwise Streamlit would reload the page after every single click)
-    with st.container(border=True):
-        st.subheader('My dietary preferences')
+    if open_box == 'My dietary preferences':
+        with st.container(border=True):
 
-        if st.session_state.get('profile_saved', False):
-            st.success('Saved')
-            st.session_state['profile_saved'] = False
+            if st.session_state.get('profile_saved', False):
+                st.success('Saved')
+                st.session_state['profile_saved'] = False
 
-        with st.form('profile_form', border=False):
-            diet = st.segmented_control('Diet', DIET_OPTIONS, default=PROFILE['diet'], width='stretch')
-            st.space('small')
+            with st.form('profile_form', border=False):
+                diet = st.segmented_control('Diet', DIET_OPTIONS, default=PROFILE['diet'], width='stretch')
+                st.space('small')
 
-            col_allergies, col_avoid = st.columns(2, gap='large')
-            with col_allergies:
-                allergies = st.pills('Allergies and intolerances', ALLERGY_OPTIONS,
-                                     default=PROFILE['allergies'], selection_mode='multi',
-                                     width='stretch', wrap=True)
-            with col_avoid:
-                avoid = st.text_input('Other foods I do not eat', value=PROFILE['avoid'])
-            st.space('small')
+                col_allergies, col_avoid = st.columns(2, gap='large')
+                with col_allergies:
+                    allergies = st.pills('Allergies and intolerances', ALLERGY_OPTIONS,
+                                         default=PROFILE['allergies'], selection_mode='multi',
+                                         width='stretch', wrap=True)
+                with col_avoid:
+                    avoid = st.text_input('Other foods I do not eat', value=PROFILE['avoid'])
+                st.space('small')
 
-            goals = st.pills('My goals', GOAL_OPTIONS, default=PROFILE['goals'],
-                             selection_mode='multi', width='stretch', wrap=True)
-            st.space('small')
+                goals = st.pills('My goals', GOAL_OPTIONS, default=PROFILE['goals'],
+                                 selection_mode='multi', width='stretch', wrap=True)
+                st.space('small')
 
-            if st.form_submit_button('Save', type='primary', icon=':material/check:'):
-                # if the user clicked the selected diet again, nothing is selected -> no restriction
-                if diet is None:
-                    diet = 'No restriction'
-                save_profile(diet, allergies, avoid, goals)
-                st.session_state['profile_saved'] = True
-                st.rerun()   # reload, so every page uses the new profile
-
-    st.space('medium')
+                if st.form_submit_button('Save', type='primary', icon=':material/check:'):
+                    # if the user clicked the selected diet again, nothing is selected -> no restriction
+                    if diet is None:
+                        diet = 'No restriction'
+                    save_profile(diet, allergies, avoid, goals)
+                    st.session_state['profile_saved'] = True
+                    st.rerun()   # reload, so every page uses the new profile
 
     # ----- box 2: my recommendations (machine learning) --------------------
-    with st.container(border=True):
-        st.subheader('My recommendations')
+    if open_box == 'My recommendations':
+        with st.container(border=True):
 
-        if len(saved) == 0:
-            st.caption('Save a few pairings to get recommendations.')
-        else:
-            with st.spinner('Loading'):
-                dish_tips = recommend_dishes(saved, PROFILE, 3)
-                wine_tips = recommend_wines(saved, 3)
-            # the budget for the wine of a recommended dish: the most expensive saved bottle
-            budget = saved['price'].max()
-            if pd.isna(budget):
-                budget = 30
+            if len(saved) == 0:
+                st.caption('Save a few pairings to get recommendations.')
+            else:
+                with st.spinner('Loading'):
+                    dish_tips = recommend_dishes(saved, PROFILE, 3)
+                    wine_tips = recommend_wines(saved, 3)
+                # the budget for the wine of a recommended dish: the most expensive saved bottle
+                budget = saved['price'].max()
+                if pd.isna(budget):
+                    budget = 30
 
-            col_dishes, col_wines = st.columns(2, gap='large')
+                col_dishes, col_wines = st.columns(2, gap='large')
 
-            with col_dishes:
-                section_label('Dishes')
-                for index, dish in dish_tips.iterrows():
-                    wine_type, score = choose_wine_for_dish(dish, saved)
-                    bottle = find_best_bottle(wine_type, budget, dish)
-                    with st.container(border=True):
-                        col_photo, col_name, col_button = st.columns([1, 3, 1], vertical_alignment='center')
-                        with col_photo:
-                            show_dish_photo(dish, 80)
-                        with col_name:
-                            st.markdown(f"**{dish['dish']}** · {wine_type}")
-                            show_match_bar(score)
-                        with col_button:
-                            if st.button('Open', key=f"tip_{dish['dish_id']}", icon=':material/menu_book:'):
-                                if bottle is None:
-                                    open_dish_window(dish, wine_type, wine_type, None, score)
-                                else:
-                                    open_dish_window(dish, wine_type, bottle['title'],
-                                                     float(bottle['price']), score)
+                with col_dishes:
+                    section_label('Dishes')
+                    for index, dish in dish_tips.iterrows():
+                        wine_type, score = choose_wine_for_dish(dish, saved)
+                        bottle = find_best_bottle(wine_type, budget, dish)
+                        with st.container(border=True):
+                            col_photo, col_name, col_button = st.columns([1, 3, 1], vertical_alignment='center')
+                            with col_photo:
+                                show_dish_photo(dish, 80)
+                            with col_name:
+                                st.markdown(f"**{dish['dish']}** · {wine_type}")
+                                show_match_bar(score)
+                            with col_button:
+                                if st.button('Open', key=f"tip_{dish['dish_id']}", icon=':material/menu_book:'):
+                                    if bottle is None:
+                                        open_dish_window(dish, wine_type, wine_type, None, score)
+                                    else:
+                                        open_dish_window(dish, wine_type, bottle['title'],
+                                                         float(bottle['price']), score)
 
-            with col_wines:
-                section_label('Wines')
-                if len(wine_tips) == 0:
-                    st.caption('Save a wine from our database to get wine recommendations.')
-                for index, wine in wine_tips.iterrows():
-                    with st.container(border=True):
-                        st.markdown(f"**{wine['title']}**")
-                        st.caption(f"{wine['variety']} · {wine['province']}, {wine['country']} · "
-                                   f"{wine['points']} points · CHF {wine['price']:.0f}")
-                        with st.expander('Sommelier notes'):
-                            st.write(wine['description'])
-
-    st.space('medium')
+                with col_wines:
+                    section_label('Wines')
+                    if len(wine_tips) == 0:
+                        st.caption('Save a wine from our database to get wine recommendations.')
+                    for index, wine in wine_tips.iterrows():
+                        with st.container(border=True):
+                            st.markdown(f"**{wine['title']}**")
+                            st.caption(f"{wine['variety']} · {wine['province']}, {wine['country']} · "
+                                       f"{wine['points']} points · CHF {wine['price']:.0f}")
+                            with st.expander('Sommelier notes'):
+                                st.write(wine['description'])
 
     # ----- box 3: my favorites ---------------------------------------------
-    with st.container(border=True):
-        st.subheader('My favorites')
+    if open_box == 'My favorites':
+        with st.container(border=True):
 
-        if len(saved) == 0:
-            st.caption('No favorites yet.')
-        for index, item in saved.iterrows():
-            with st.container(border=True):
-                col_photo, col_text, col_delete = st.columns([1, 4, 1], vertical_alignment='center')
-                with col_photo:
-                    show_dish_photo(item, 110)
-                with col_text:
-                    st.markdown(f"**{item['dish']}  ·  {item['wine_type']}**")
-                    st.caption(f"{item['wine_name']} · {item['saved_on']}")
-                    show_match_bar(item['score'])
-                with col_delete:
-                    if st.button('Remove', key=f"delete_{item['saved_id']}", icon=':material/delete:',
-                                 type='tertiary'):
-                        cursor = DB.cursor()
-                        cursor.execute('DELETE FROM favorites WHERE saved_id = ?', (int(item['saved_id']),))
-                        DB.commit()
-                        st.rerun()   # reload the page so the removed pairing disappears
-                with st.expander('Recipe, grocery list & why it matches'):
-                    st.markdown(f"**Why it matches:** {get_why_text(item['wine_type'], item)}")
-                    show_recipe(item)
+            if len(saved) == 0:
+                st.caption('No favorites yet.')
+            for index, item in saved.iterrows():
+                with st.container(border=True):
+                    col_photo, col_text, col_delete = st.columns([1, 4, 1], vertical_alignment='center')
+                    with col_photo:
+                        show_dish_photo(item, 110)
+                    with col_text:
+                        st.markdown(f"**{item['dish']}  ·  {item['wine_type']}**")
+                        st.caption(f"{item['wine_name']} · {item['saved_on']}")
+                        show_match_bar(item['score'])
+                    with col_delete:
+                        if st.button('Remove', key=f"delete_{item['saved_id']}", icon=':material/delete:',
+                                     type='tertiary'):
+                            cursor = DB.cursor()
+                            cursor.execute('DELETE FROM favorites WHERE saved_id = ?', (int(item['saved_id']),))
+                            DB.commit()
+                            st.rerun()   # reload the page so the removed pairing disappears
+                    with st.expander('Recipe, grocery list & why it matches'):
+                        st.markdown(f"**Why it matches:** {get_why_text(item['wine_type'], item)}")
+                        show_recipe(item)
 
 
 # close the database connection (like at the end of the week 7 demo)
