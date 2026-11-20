@@ -33,6 +33,10 @@ import os                       # to work with file paths (where are our files?)
 import time                     # to wait a moment between two requests to Wikipedia
 import requests                 # to ask the Wikipedia API for the dish photos
 import base64                   # to put our own pictures (hero image, logo) into the home page
+import numpy as np              # calculations with lists of numbers (for the recommendations)
+# machine learning (scikit-learn): turn texts into numbers and compare them
+from sklearn.feature_extraction.text import TfidfVectorizer, ENGLISH_STOP_WORDS
+from sklearn.metrics.pairwise import cosine_similarity
 
 
 # set some configurations of our app (like in the week 4 dice demo)
@@ -464,6 +468,8 @@ st.markdown("""
     .dish-photo { width: 100%; object-fit: cover; border-radius: 2px; margin-bottom: 1rem; }
     /* thin golden line between sections */
     hr { border-color: #E2D9C8 !important; }
+    /* hide the small hint 'Press Enter to apply' below the text fields (AI-generated, see AI_USE_LOG.md entry 13) */
+    [data-testid="InputInstructions"] { display: none; }
 
     /* ---------- top navigation and home page (AI-generated, see AI_USE_LOG.md entry 10) ---------- */
     /* Streamlit's own bar at the top: transparent, so it does not cover our navigation */
@@ -928,6 +934,115 @@ def describe_profile(profile):
     return ' · '.join(parts)
 
 
+# ---------- recommendations (machine learning) --------------------------------
+# AI-generated (Claude) - see AI_USE_LOG.md entry 13
+#
+# The idea ("content-based recommendation"):
+# 1. The computer cannot read texts, so we turn every text (the tasting note of a
+#    wine, the ingredients of a dish) into a list of numbers. TF-IDF gives every
+#    word a weight: words that appear in a text often, but are rare in all other
+#    texts, get a high weight (e.g. 'smoky' or 'truffle'). Words like 'wine' that
+#    are everywhere get almost no weight.
+# 2. The "taste" of the user is the average of the numbers of everything they saved.
+# 3. Cosine similarity measures how close two lists of numbers are
+#    (1 = the same direction, 0 = nothing in common). We recommend the wines and
+#    dishes that are closest to the user's taste - and that they did not save yet.
+# The more pairings the user saves, the better the model knows their taste.
+
+# words in the ingredient lists that say nothing about the taste of a dish
+KITCHEN_WORDS = ['tbsp', 'tsp', 'bunch', 'pinch', 'cloves', 'clove', 'large', 'small',
+                 'fresh', 'piece', 'pieces', 'slices', 'handful', 'cup', 'cups']
+
+
+@st.cache_resource(show_spinner=False)
+def build_wine_taste_model():
+    """Learn the taste of all wines from their tasting notes (TF-IDF).
+
+    Returns the wines table and a matrix with one row of numbers per wine.
+    st.cache_resource: this runs only once (it takes a few seconds),
+    afterwards Streamlit keeps the result in memory for all users.
+    """
+    # AI-generated (Claude) - see AI_USE_LOG.md entry 13
+    # own connection: the result is shared between all users and page loads
+    connection = sqlite3.connect(DATABASE_FILE)
+    wines = pd.read_sql("""SELECT title, variety, country, province, winery, points, price, description
+                           FROM wines""", connection)
+    connection.close()
+
+    # min_df=5: ignore words that appear in fewer than 5 tasting notes (typos, names)
+    vectorizer = TfidfVectorizer(stop_words='english', min_df=5, max_features=10000)
+    taste_matrix = vectorizer.fit_transform(wines['description'])
+    return wines, taste_matrix
+
+
+def recommend_wines(saved, how_many):
+    """Return the wines whose tasting notes are most similar to the wines the user saved.
+
+    saved is the table of saved pairings (it needs the column 'wine_name').
+    """
+    # AI-generated (Claude) - see AI_USE_LOG.md entry 13
+    wines, taste_matrix = build_wine_taste_model()
+
+    # which wines did the user save? (wines typed in by the user are not in our table)
+    is_saved = wines['title'].isin(saved['wine_name']).values
+    if is_saved.sum() == 0:
+        return wines.head(0)      # an empty table: we know none of the saved wines
+
+    # the user's taste = the average of the saved wines, then compare it with every wine
+    my_taste = np.asarray(taste_matrix[is_saved].mean(axis=0))
+    similarity = cosine_similarity(my_taste, taste_matrix)[0]
+
+    # the model also learns the budget: at most 1.5 times the most expensive saved bottle
+    max_price = wines[is_saved]['price'].max() * 1.5
+    keep = (~is_saved) & (wines['price'] <= max_price).values
+
+    candidates = wines[keep].copy()
+    candidates['similarity'] = similarity[keep]
+    # one wine per producer, so the list is not five times the same winery
+    candidates = candidates.sort_values('similarity', ascending=False).drop_duplicates('winery')
+    return candidates.head(how_many)
+
+
+def recommend_dishes(saved, profile, how_many):
+    """Return the dishes most similar to the dishes the user saved (and that fit the profile)."""
+    # AI-generated (Claude) - see AI_USE_LOG.md entry 13
+    # one text per dish: name, ingredients, course and diet
+    dish_texts = (DISHES['dish'] + ' ' + DISHES['ingredients'].str.replace(';', ' ') + ' '
+                  + DISHES['course'] + ' ' + DISHES['diet'])
+    # token_pattern: only words of at least 3 letters (so '200 g' is ignored)
+    vectorizer = TfidfVectorizer(stop_words=list(ENGLISH_STOP_WORDS) + KITCHEN_WORDS,
+                                 token_pattern=r'(?u)\b[^\W\d_]{3,}\b')
+    dish_matrix = vectorizer.fit_transform(dish_texts)
+
+    is_saved = DISHES['dish_id'].isin(saved['dish_id']).values
+    my_taste = np.asarray(dish_matrix[is_saved].mean(axis=0))
+    similarity = cosine_similarity(my_taste, dish_matrix)[0]
+
+    # only dishes the user did not save yet, and that fit the diet and allergies
+    allowed = DISHES['dish_id'].isin(get_profile_dishes(profile, with_allergies=True)['dish_id']).values
+    keep = (~is_saved) & allowed
+
+    candidates = DISHES[keep].copy()
+    candidates['similarity'] = similarity[keep]
+    return candidates.sort_values('similarity', ascending=False).head(how_many)
+
+
+def choose_wine_for_dish(dish, saved):
+    """Return (wine type, score) for a recommended dish.
+
+    If the grape the user saves most often goes well with the dish (score 75 or more),
+    we take it - otherwise the best grape for the dish.
+    """
+    # AI-generated (Claude) - see AI_USE_LOG.md entry 13
+    favourite_grape = saved['wine_type'].mode()[0]
+    favourite_score = predict_match_score(favourite_grape, dish)
+    if favourite_score >= 75:
+        return favourite_grape, favourite_score
+
+    best = get_top_wines_for_dish(dish, 1).iloc[0]
+    return best['wine_type'], best['score']
+
+
 # ---------- saving -----------------------------------------------------------
 
 def save_favorite(dish, wine_type, wine_name, price, score):
@@ -959,7 +1074,8 @@ def page_header(eyebrow, title, subtitle):
     # AI-generated (Claude) - see AI_USE_LOG.md entry 7
     st.markdown(f'<p class="eyebrow">{eyebrow}</p>', unsafe_allow_html=True)
     st.title(title)
-    st.markdown(f'<p class="subtitle">{subtitle}</p>', unsafe_allow_html=True)
+    if subtitle != '':
+        st.markdown(f'<p class="subtitle">{subtitle}</p>', unsafe_allow_html=True)
     st.space('medium')
 
 
@@ -1022,7 +1138,6 @@ def show_wine_details(bottle, wine_type, dish):
     st.markdown(f"**Why it matches:** {get_why_text(wine_type, dish)}")
     with st.expander('Sommelier notes'):
         st.write(bottle['description'])
-        st.caption('Tasting note from Wine Enthusiast magazine')
 
 
 def ask_for_wine(key, ask_details):
@@ -1040,15 +1155,13 @@ def ask_for_wine(key, ask_details):
         # name, year and producer next to each other in one row
         col_name, col_year, col_producer = st.columns([3, 1, 2])
         with col_name:
-            name = st.text_input('Name of the wine', key=f'{key}_name',
-                                 placeholder='e.g. Barolo, Prosecco or Château Margaux')
+            name = st.text_input('Name of the wine', key=f'{key}_name')
         with col_year:
-            year = st.text_input('Year', key=f'{key}_year', placeholder='e.g. 2016')
+            year = st.text_input('Year', key=f'{key}_year')
         with col_producer:
-            producer = st.text_input('Producer', key=f'{key}_producer', placeholder='e.g. Antinori')
+            producer = st.text_input('Producer', key=f'{key}_producer')
     else:
-        name = st.text_input('Name of the wine', key=f'{key}_name',
-                             placeholder='e.g. Barolo, Prosecco or Château Margaux')
+        name = st.text_input('Name of the wine', key=f'{key}_name')
 
     search_text = f'{name} {year} {producer}'.strip()
     if search_text == '':
@@ -1356,19 +1469,13 @@ elif page == "I know what I'm cooking":
             my_dishes['dish'],
             index=None,
             accept_new_options=True,
-            placeholder="Start typing, e.g. 'risotto' or 'salmon'",
+            placeholder='Start typing',
         )
     with col_budget:
         budget_label = st.selectbox('Budget per bottle', list(BUDGET_OPTIONS.keys()), index=1)
         max_price = BUDGET_OPTIONS[budget_label]
 
-    if meal is None:
-        if len(my_dishes) < len(DISHES):
-            st.caption(f'Choose one of the {len(my_dishes)} dishes that fit your profile '
-                       f'({describe_profile(PROFILE)}), or describe your own meal and press Enter.')
-        else:
-            st.caption(f'Choose one of our {len(DISHES)} dishes, or simply describe your own meal and press Enter.')
-    else:
+    if meal is not None:
         dish = find_closest_dish(meal, my_dishes)
 
         if dish is None:
@@ -1377,8 +1484,7 @@ elif page == "I know what I'm cooking":
                 st.warning(f'We know "{meal}", but it does not fit your profile '
                            f'({describe_profile(PROFILE)}). You can change it under My profile.')
             else:
-                st.warning(f'Sorry, we do not know "{meal}" yet. Try other words, '
-                           'e.g. the main ingredient (chicken, pasta, tofu ...).')
+                st.warning(f'Sorry, we do not know "{meal}" yet.')
         else:
             if dish['dish'] != meal:
                 st.caption(f'The closest dish to "{meal}" that we know is **{dish["dish"]}**.')
@@ -1444,8 +1550,6 @@ elif page == "I know what I'm cooking":
                          'are rated "outstanding" (90 points or more)?')
                 st.bar_chart(get_share_of_top_wines(best_wine), color='#9C8556',
                              x_label='Price per bottle', y_label='% rated 90+ points')
-                st.caption('A higher price makes a top wine more likely - '
-                           'but you can also find top wines in the cheaper ranges.')
 
 
 # ===========================================================================
@@ -1474,11 +1578,7 @@ elif page == 'I already have a wine':
         allergies = st.pills('Allergies and intolerances', allergy_options, default=allergy_defaults,
                              selection_mode='multi', width='stretch', wrap=True)
     with col_other:
-        other_allergies = st.text_input('Anything else? (separate with commas)', value=PROFILE['avoid'],
-                                        placeholder='e.g. mushrooms, garlic')
-    if describe_profile(PROFILE) != 'no restrictions':
-        st.caption('Preselected from your profile - you can change it for this search. '
-                   'To change it for good, go to My profile.')
+        other_allergies = st.text_input('Anything else? (separate with commas)', value=PROFILE['avoid'])
 
     st.space('medium')
     section_label('03 · What do you feel like?')
@@ -1487,13 +1587,11 @@ elif page == 'I already have a wine':
         preferences = st.pills('Preferences', preference_options, default=preference_defaults,
                                selection_mode='multi', width='stretch', wrap=True)
     with col_wish:
-        own_wish = st.text_input('Or in your own words', placeholder='e.g. pasta, chicken, soup')
+        own_wish = st.text_input('Or in your own words')
 
     st.divider()
 
-    if my_wine is None:
-        st.caption('Tell us your wine above to see the matching dishes.')
-    else:
+    if my_wine is not None:
         wine_type = my_wine['wine_type']
         # the diet of the profile always counts; the allergies are the ones selected above
         suitable = filter_dishes(get_profile_dishes(PROFILE, with_allergies=False),
@@ -1539,7 +1637,6 @@ elif page == 'I already have a wine':
                 by_country = get_top_wines_by_country(wine_type)
                 st.bar_chart(by_country, x='country', y='percent_top_wines', horizontal=True,
                              color='#9C8556', x_label='Country', y_label='% of wines rated 90+ points')
-                st.caption('Only countries with at least 20 reviewed wines are shown.')
 
 
 # ===========================================================================
@@ -1594,20 +1691,19 @@ elif page == 'Effortless evening':
             section_label('01 · The occasion')
             st.subheader('What is the evening about?')
             occasion = st.pills('Occasion', OCCASION_OPTIONS, label_visibility='collapsed', width='stretch', wrap=True)
-            own_occasion = st.text_input('Or write your own', key='own_occasion',
-                                         placeholder='e.g. our anniversary')
+            own_occasion = st.text_input('Or write your own', key='own_occasion')
             st.space('large')
 
             section_label('02 · Your guests')
             st.subheader('How many people are at the table?')
             guests_choice = st.pills('Guests', ['2', '4', '6', '8', '12'], label_visibility='collapsed', width='stretch', wrap=True)
-            own_guests = st.text_input('Or write your own number', key='own_guests', placeholder='e.g. 5')
+            own_guests = st.text_input('Or write your own number', key='own_guests')
             st.space('large')
 
             section_label('03 · Your budget')
             st.subheader('How much would you like to spend per bottle?')
             budget_choice = st.pills('Budget', list(BUDGET_OPTIONS.keys()), label_visibility='collapsed', width='stretch', wrap=True)
-            own_budget = st.text_input('Or write your own amount in CHF', key='own_budget', placeholder='e.g. 25')
+            own_budget = st.text_input('Or write your own amount in CHF', key='own_budget')
             st.space('large')
 
             section_label('04 · Food preferences')
@@ -1617,10 +1713,7 @@ elif page == 'Effortless evening':
             preferences = st.pills('Preferences', preference_options, selection_mode='multi',
                                    default=[item for item in PROFILE['goals'] if item in preference_options],
                                    label_visibility='collapsed', width='stretch', wrap=True)
-            if describe_profile(PROFILE) != 'no restrictions':
-                st.caption(f'We only suggest dishes that fit your profile: {describe_profile(PROFILE)}.')
-            own_preference = st.text_input('Or in your own words', key='own_preference',
-                                           placeholder='e.g. something with mushrooms')
+            own_preference = st.text_input('Or in your own words', key='own_preference')
             st.space('large')
 
             if st.button('Set the table', type='primary', icon=':material/wine_bar:', width='stretch'):
@@ -1758,78 +1851,124 @@ elif page == 'Effortless evening':
 
 
 # ===========================================================================
-# PAGE 4: My profile  (the saved pairings, read from the database)
+# PAGE 4: My profile  (three boxes: dietary preferences, recommendations, favorites)
 # ===========================================================================
-# AI-generated (Claude) - see AI_USE_LOG.md entry 7
+# AI-generated (Claude) - see AI_USE_LOG.md entries 7, 12 and 13
 elif page == 'My profile':
-    page_header('Your collection', 'My profile',
-                'Your nutrition requirements, and every pairing you saved.')
-
-    # ----- my nutrition requirements ---------------------------------------
-    # AI-generated (Claude) - see AI_USE_LOG.md entry 12
-    # st.form groups the fields: nothing happens until the user clicks "Save"
-    # (otherwise Streamlit would reload the page after every single click)
-    section_label('My nutrition requirements')
-    st.caption('Saved once, used everywhere: every page only shows dishes that fit your profile, '
-               'and your choices are preselected.')
-
-    if st.session_state.get('profile_saved', False):
-        st.success('Your profile is saved - the whole app now uses it.')
-        st.session_state['profile_saved'] = False
-
-    with st.form('profile_form', border=True):
-        st.markdown('**Diet**')
-        diet = st.segmented_control('Diet', DIET_OPTIONS, default=PROFILE['diet'],
-                                    label_visibility='collapsed', width='stretch')
-        st.caption('Pescatarian: no meat, but fish · Vegetarian: no meat, no fish · '
-                   'Vegan: no animal products at all')
-        st.space('small')
-
-        col_allergies, col_avoid = st.columns(2, gap='large')
-        with col_allergies:
-            allergies = st.pills('Allergies and intolerances', ALLERGY_OPTIONS, default=PROFILE['allergies'],
-                                 selection_mode='multi', width='stretch', wrap=True)
-        with col_avoid:
-            avoid = st.text_input('Other foods I do not eat (separate with commas)', value=PROFILE['avoid'],
-                                  placeholder='e.g. mushrooms, pork, coriander')
-        st.space('small')
-
-        goals = st.pills('My goals (preselected, but you can switch them off for a search)', GOAL_OPTIONS,
-                         default=PROFILE['goals'], selection_mode='multi', width='stretch', wrap=True)
-        st.space('small')
-
-        if st.form_submit_button('Save my profile', type='primary', icon=':material/check:'):
-            # if the user clicked the selected diet again, nothing is selected -> no restriction
-            if diet is None:
-                diet = 'No restriction'
-            save_profile(diet, allergies, avoid, goals)
-            st.session_state['profile_saved'] = True
-            st.rerun()   # reload, so the sidebar and every page use the new profile
-
-    # ----- the saved pairings ----------------------------------------------
-    st.divider()
+    page_header('Your collection', 'My profile', '')
 
     # JOIN: we need the saved pairing AND the information about its dish
+    # (read first, because the recommendations and the favorites both need it)
     saved = pd.read_sql("""
                 SELECT favorites.saved_id, favorites.wine_type, favorites.wine_name,
-                       favorites.score, favorites.saved_on, dishes.*
+                       favorites.price, favorites.score, favorites.saved_on, dishes.*
                 FROM favorites
                 INNER JOIN dishes ON dishes.dish_id = favorites.dish_id
                 ORDER BY favorites.saved_id DESC
                 """, DB)
 
-    if len(saved) == 0:
-        st.info('Nothing saved yet. Use the Save buttons on the other pages to collect your favourite pairings.')
-    else:
-        section_label(f'{len(saved)} saved pairings')
+    # ----- box 1: my dietary preferences -----------------------------------
+    # st.form groups the fields: nothing happens until the user clicks "Save"
+    # (otherwise Streamlit would reload the page after every single click)
+    with st.container(border=True):
+        st.subheader('My dietary preferences')
+
+        if st.session_state.get('profile_saved', False):
+            st.success('Saved')
+            st.session_state['profile_saved'] = False
+
+        with st.form('profile_form', border=False):
+            diet = st.segmented_control('Diet', DIET_OPTIONS, default=PROFILE['diet'], width='stretch')
+            st.space('small')
+
+            col_allergies, col_avoid = st.columns(2, gap='large')
+            with col_allergies:
+                allergies = st.pills('Allergies and intolerances', ALLERGY_OPTIONS,
+                                     default=PROFILE['allergies'], selection_mode='multi',
+                                     width='stretch', wrap=True)
+            with col_avoid:
+                avoid = st.text_input('Other foods I do not eat', value=PROFILE['avoid'])
+            st.space('small')
+
+            goals = st.pills('My goals', GOAL_OPTIONS, default=PROFILE['goals'],
+                             selection_mode='multi', width='stretch', wrap=True)
+            st.space('small')
+
+            if st.form_submit_button('Save', type='primary', icon=':material/check:'):
+                # if the user clicked the selected diet again, nothing is selected -> no restriction
+                if diet is None:
+                    diet = 'No restriction'
+                save_profile(diet, allergies, avoid, goals)
+                st.session_state['profile_saved'] = True
+                st.rerun()   # reload, so every page uses the new profile
+
+    st.space('medium')
+
+    # ----- box 2: my recommendations (machine learning) --------------------
+    with st.container(border=True):
+        st.subheader('My recommendations')
+
+        if len(saved) == 0:
+            st.caption('Save a few pairings to get recommendations.')
+        else:
+            with st.spinner('Loading'):
+                dish_tips = recommend_dishes(saved, PROFILE, 3)
+                wine_tips = recommend_wines(saved, 3)
+            # the budget for the wine of a recommended dish: the most expensive saved bottle
+            budget = saved['price'].max()
+            if pd.isna(budget):
+                budget = 30
+
+            col_dishes, col_wines = st.columns(2, gap='large')
+
+            with col_dishes:
+                section_label('Dishes')
+                for index, dish in dish_tips.iterrows():
+                    wine_type, score = choose_wine_for_dish(dish, saved)
+                    bottle = find_best_bottle(wine_type, budget, dish)
+                    with st.container(border=True):
+                        col_photo, col_name, col_button = st.columns([1, 3, 1], vertical_alignment='center')
+                        with col_photo:
+                            show_dish_photo(dish, 80)
+                        with col_name:
+                            st.markdown(f"**{dish['dish']}** · {wine_type}")
+                            show_match_bar(score)
+                        with col_button:
+                            if st.button('Open', key=f"tip_{dish['dish_id']}", icon=':material/menu_book:'):
+                                if bottle is None:
+                                    open_dish_window(dish, wine_type, wine_type, None, score)
+                                else:
+                                    open_dish_window(dish, wine_type, bottle['title'],
+                                                     float(bottle['price']), score)
+
+            with col_wines:
+                section_label('Wines')
+                if len(wine_tips) == 0:
+                    st.caption('Save a wine from our database to get wine recommendations.')
+                for index, wine in wine_tips.iterrows():
+                    with st.container(border=True):
+                        st.markdown(f"**{wine['title']}**")
+                        st.caption(f"{wine['variety']} · {wine['province']}, {wine['country']} · "
+                                   f"{wine['points']} points · CHF {wine['price']:.0f}")
+                        with st.expander('Sommelier notes'):
+                            st.write(wine['description'])
+
+    st.space('medium')
+
+    # ----- box 3: my favorites ---------------------------------------------
+    with st.container(border=True):
+        st.subheader('My favorites')
+
+        if len(saved) == 0:
+            st.caption('No favorites yet.')
         for index, item in saved.iterrows():
             with st.container(border=True):
                 col_photo, col_text, col_delete = st.columns([1, 4, 1], vertical_alignment='center')
                 with col_photo:
                     show_dish_photo(item, 110)
                 with col_text:
-                    st.subheader(f"{item['dish']}  ·  {item['wine_type']}")
-                    st.caption(f"{item['wine_name']} · saved on {item['saved_on']}")
+                    st.markdown(f"**{item['dish']}  ·  {item['wine_type']}**")
+                    st.caption(f"{item['wine_name']} · {item['saved_on']}")
                     show_match_bar(item['score'])
                 with col_delete:
                     if st.button('Remove', key=f"delete_{item['saved_id']}", icon=':material/delete:',

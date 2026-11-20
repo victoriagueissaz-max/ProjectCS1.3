@@ -207,6 +207,31 @@ Claude Code desktop app.
   vegan profile.
 - **What we checked / changed:** [...]
 
+## Entry 13 – Profile in three boxes, recommendations with machine learning, fewer texts (AI-generated code)
+
+- **Prompt (summary):** "For the profile I want 3 boxes: my dietary preferences, my recommendations
+  (machine learning, based on the wines and recipes the user saves) and my favorites. Remove
+  unnecessary comments, the 'e.g. ...' in the typing boxes and 'Press Enter to submit form' - in
+  general on the whole website."
+- **What the AI generated / changed:**
+  - "My profile" now has three boxes: *My dietary preferences* (the form from entry 12),
+    *My recommendations* and *My favorites* (the saved pairings).
+  - **Machine learning (content-based recommendation, scikit-learn):** `build_wine_taste_model()`
+    turns the tasting notes of all wines into numbers with TF-IDF (cached, it runs once);
+    `recommend_wines()` and `recommend_dishes()` take the average of what the user saved as their
+    "taste" and use cosine similarity to find the most similar wines and dishes that the user has
+    not saved yet. Dishes must fit the dietary preferences; wines stay within 1.5 times the most
+    expensive saved bottle. `choose_wine_for_dish()` pairs a recommended dish with the user's
+    favourite grape if it matches well (score 75 or more).
+  - `scikit-learn` was added to `requirements.txt`.
+  - Removed the explanatory captions, all "e.g. ..." placeholders and (with CSS) the
+    "Press Enter to apply / submit form" hint below the text fields.
+- **How it was tested:** with Streamlit's test tool (`AppTest`): all five pages; the profile page
+  without favorites and with two saved pairings (mushroom risotto + Pinot Noir, cream of mushroom
+  soup + Chardonnay -> recommended: French onion soup, Zürcher Geschnetzeltes, Ossobuco and three
+  similar Pinot Noirs); the "Open" button of a recommended dish.
+- **What we checked / changed:** [...]
+
 ---
 
 ## Reflection for the video (to fill in at the end of the project)
