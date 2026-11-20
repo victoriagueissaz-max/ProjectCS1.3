@@ -412,6 +412,50 @@ Claude Code desktop app.
   desserts; the mood buttons with and without a profile.
 - **What we checked / changed:** [...]
 
+## Entry 25 – More detailed recipes and the doneness of meat (AI-generated content and code)
+
+- **Prompt (summary):** "Add more detailed cooking recipes, and for meat dishes (except chicken and
+  pork) add the internal temperature the meat should reach, after a button that asks for the
+  doneness: well done, medium, medium rare, rare."
+- **What the AI generated / changed:**
+  - `dishes.csv`: all 60 recipes rewritten with 5 to 8 detailed steps (times, temperatures, how to see
+    that something is ready, tips). The ingredients and all other columns are unchanged.
+  - Doneness: for Grilled steak, Rack of lamb, Duck à l'orange, Vitello tonnato and Cheeseburger the
+    recipe starts with the buttons "Well done / Medium / Medium rare / Rare" (`DONENESS_DISHES`,
+    `CORE_TEMPERATURES`). The app shows the core temperature and when to take the meat off the heat
+    (3 °C earlier, because it keeps rising while it rests), and puts these temperatures into the
+    recipe steps (placeholders `{core}` and `{pull}` in `dishes.csv`). For the burger (minced meat)
+    the app warns that it is only safe at 70 °C.
+  - No doneness for chicken and pork, braised meat (Beef bourguignon, Ossobuco, Coq au vin), raw meat
+    (Beef carpaccio) and thin meat that is always cooked through (Wiener schnitzel, Zürcher
+    Geschnetzeltes, Lasagna).
+  - `show_recipe()` got a `key` parameter, because the same dish can appear twice on one page.
+- **Sources for the temperatures:** common kitchen guidelines (beef: rare 50 °C, medium rare 55 °C,
+  medium 60 °C, well done 70 °C; lamb and veal about 2 °C higher; minced meat 70 °C).
+- **How it was tested:** with `AppTest` on a newly built database: the five dishes with all doneness
+  options, dishes without the buttons, the same dish twice in the favorites, all pages.
+- **What we checked / changed:** [...]
+
+## Entry 26 – "Your next meal": wine bottles, stable recommendations, "Generate again" (AI-generated code)
+
+- **Prompt (summary):** "Instead of the greek letters use a wine bottle shape with numbers in it. If I
+  save a wine under Your next meal and then unsave it, the whole meal and wine combination changes -
+  change that. And add a Generate again button at the very bottom."
+- **What the AI changed:**
+  - `wine_bottle()` draws a small gold wine bottle (SVG) with the numbers 1 to 5 on its label.
+  - The recommendations are calculated once by `plan_next_meals()` and kept in `st.session_state`.
+    Saving or removing a wine no longer changes them. They are only calculated again when the user
+    clicks "Generate again" (then the model also learns from the wines saved or removed in the
+    meantime) or when the dietary restrictions change.
+  - The heart button is now a toggle: "Save" adds the pairing to the favorites, "Saved" removes it
+    again (`remove_favorite()`).
+  - "Generate again" shows five new main courses that were not shown yet; when all main courses have
+    been shown, it starts from the beginning.
+- **How it was tested:** with `AppTest`: save and unsave a wine (the five dishes stay the same, the
+  favorites go from 0 to 1 to 0), "Generate again" ten times (always five main courses, no repeats
+  until all were shown), changing the profile to vegan; the bottle was rendered as an image and checked.
+- **What we checked / changed:** [...]
+
 ---
 
 ## Reflection for the video (to fill in at the end of the project)

@@ -437,6 +437,27 @@ STOP_WORDS = ['and', 'the', 'with', 'for', 'some', 'from', 'like', 'want', 'dish
 SWEET_WINE_WORDS = ['Eiswein', 'Ice Wine', 'Icewine', 'Late Harvest', 'Auslese',
                     'Botrytis', 'Noble', 'Vendange Tardive', 'Moelleux', 'Dessert']
 
+# how well the meat is cooked: the core temperature (in °C) the meat should reach
+# AI-generated (Claude) - see AI_USE_LOG.md entry 25
+DONENESS_OPTIONS = ['Well done', 'Medium', 'Medium rare', 'Rare']
+CORE_TEMPERATURES = {
+    'beef': {'Rare': 50, 'Medium rare': 55, 'Medium': 60, 'Well done': 70},
+    'lamb': {'Rare': 52, 'Medium rare': 57, 'Medium': 62, 'Well done': 70},
+    'veal': {'Rare': 52, 'Medium rare': 57, 'Medium': 62, 'Well done': 70},
+    'duck': {'Rare': 52, 'Medium rare': 56, 'Medium': 60, 'Well done': 70},
+}
+# the dishes where the user can choose: {dish: (kind of meat, doneness selected at the start)}
+# (no choice for chicken and pork, braised meat, raw meat and thin meat that is always cooked through)
+DONENESS_DISHES = {
+    'Grilled steak': ('beef', 'Medium rare'),
+    'Rack of lamb': ('lamb', 'Medium rare'),
+    "Duck à l'orange": ('duck', 'Medium rare'),
+    'Vitello tonnato': ('veal', 'Medium'),
+    'Cheeseburger': ('beef', 'Well done'),
+}
+# minced meat is not rested, and it is only safe when it is cooked through
+MINCED_MEAT_DISHES = ['Cheeseburger']
+
 
 # ===========================================================================
 # STYLE: a few extra design rules (CSS) that the theme file cannot set
@@ -521,9 +542,8 @@ st.markdown("""
     [class*="st-key-profile_box_"] button p { font-family: 'Bodoni Moda', serif; font-size: 1.5rem;
                                              color: #1E1A16; }
     [class*="st-key-profile_box_"] button:hover { border-color: #9C8556; }
-    /* the big greek letters in "My recommendations" (AI-generated, see AI_USE_LOG.md entry 23) */
-    .rec-letter { font-family: 'Bodoni Moda', serif; font-size: 4.5rem; color: #9C8556;
-                  font-style: italic; line-height: 1; text-align: center; }
+    /* the wine bottles with numbers in "My recommendations" (AI-generated, see AI_USE_LOG.md entry 23) */
+    .rec-bottle { display: flex; justify-content: center; }
     /* the dark band with the numbers at the end of the home page */
     .home-band { width: 100vw; margin-left: calc(50% - 50vw); margin-top: 5rem; background: #14110F;
                  color: #EDE5D6; padding: 4.5rem 1rem; display: flex; justify-content: center;
@@ -1023,14 +1043,15 @@ def find_bottle_for_my_taste(wine_type, max_price, dish, my_taste):
     return bottles.sort_values('similarity', ascending=False).iloc[0]
 
 
-def recommend_dishes(saved, profile, how_many):
+def recommend_dishes(saved, profile, how_many, already_shown):
     """Return the dishes for the user's next meal (best first).
 
     Only dishes that fit the diet and the allergies of the profile.
     Main courses come first. Among them, the dishes most similar to the dishes
     the user saved win. Without saved dishes we pick dishes that fit the profile.
+    already_shown: dish_ids we do not want to show again ("Generate again")
     """
-    # AI-generated (Claude) - see AI_USE_LOG.md entries 13 and 23
+    # AI-generated (Claude) - see AI_USE_LOG.md entries 13, 23 and 26
     # one text per dish: name, ingredients, course and diet
     dish_texts = (DISHES['dish'] + ' ' + DISHES['ingredients'].str.replace(';', ' ') + ' '
                   + DISHES['course'] + ' ' + DISHES['diet'])
@@ -1053,10 +1074,50 @@ def recommend_dishes(saved, profile, how_many):
     candidates['similarity'] = similarity
     candidates = candidates[candidates['dish_id'].isin(allowed['dish_id']) & ~is_saved]
 
+    # leave out the dishes that were already shown - unless there are not enough
+    # main courses left: then we start again from the beginning
+    not_shown = candidates[~candidates['dish_id'].isin(already_shown)]
+    if (not_shown['course'] == 'main').sum() >= how_many:
+        candidates = not_shown
+
     # main courses first, then the most similar dishes
     candidates['is_main'] = candidates['course'] == 'main'
     candidates = candidates.sort_values(['is_main', 'similarity'], ascending=[False, False])
     return candidates.head(how_many)
+
+
+def plan_next_meals(saved, profile, already_shown):
+    """Calculate the five recommendations: every dish with its three best wines and a bottle each.
+
+    The result is stored in st.session_state, so it stays the same when the user
+    saves or removes a wine. Only "Generate again" calculates new recommendations.
+    """
+    # AI-generated (Claude) - see AI_USE_LOG.md entry 26
+    dish_tips = recommend_dishes(saved, profile, 5, already_shown)
+    my_taste = get_my_wine_taste(saved)
+
+    # the budget per bottle: the most expensive saved bottle (CHF 30 if we do not know it)
+    budget = saved['price'].max()
+    if pd.isna(budget):
+        budget = 30
+
+    meals = []
+    for index, dish in dish_tips.iterrows():
+        wines = []
+        for wine_index, wine in get_top_wines_for_dish(dish, 3).iterrows():
+            bottle = find_bottle_for_my_taste(wine['wine_type'], budget, dish, my_taste)
+            if bottle is not None:
+                bottle = bottle.to_dict()     # a normal dictionary, easy to store
+            wines.append({'wine_type': wine['wine_type'], 'score': int(wine['score']), 'bottle': bottle})
+        meals.append({'dish_id': int(dish['dish_id']), 'wines': wines})
+
+    new_ids = [meal['dish_id'] for meal in meals]
+    # if a dish comes again, we started from the beginning - so we also start a new list
+    if any(dish_id in already_shown for dish_id in new_ids):
+        already_shown = []
+    return {'meals': meals,
+            'shown': list(already_shown) + new_ids,
+            'profile': describe_profile(profile)}
 
 
 # ---------- saving -----------------------------------------------------------
@@ -1083,7 +1144,32 @@ def save_favorite(dish, wine_type, wine_name, price, score):
     connection.close()
 
 
+def remove_favorite(dish_id, wine_name):
+    """Remove a saved dish and wine combination from the favorites table."""
+    # AI-generated (Claude) - see AI_USE_LOG.md entry 26
+    connection = sqlite3.connect(DATABASE_FILE)
+    cursor = connection.cursor()
+    cursor.execute('DELETE FROM favorites WHERE dish_id = ? AND wine_name = ?', (int(dish_id), wine_name))
+    connection.commit()
+    connection.close()
+
+
 # ---------- pieces of the page that we use several times ----------------------
+
+def wine_bottle(number):
+    """Return a small wine bottle (drawn as SVG) with a number on its label, as HTML."""
+    # AI-generated (Claude) - see AI_USE_LOG.md entry 26
+    # SVG draws shapes with coordinates: the path is the outline of the bottle
+    # (neck, round shoulders, body), the circle is the label and the text the number
+    return (f'<div class="rec-bottle"><svg viewBox="0 0 44 120" width="52" height="142">'
+            f'<path d="M17 2 h10 v30 c0 8 13 12 13 24 v56 a6 6 0 0 1 -6 6 h-24 a6 6 0 0 1 -6 -6 '
+            f'v-56 c0 -12 13 -16 13 -24 z" fill="#9C8556"/>'
+            f'<rect x="15" y="2" width="14" height="6" rx="1.5" fill="#7A6640"/>'
+            f'<circle cx="22" cy="82" r="13" fill="#FBF8F3"/>'
+            f'<text x="22" y="89" text-anchor="middle" font-family="Bodoni Moda, serif" '
+            f'font-size="20" font-style="italic" fill="#9C8556">{number}</text>'
+            f'</svg></div>')
+
 
 def page_header(eyebrow, title, subtitle):
     """Show the title of a page with a small golden label above it."""
@@ -1119,9 +1205,35 @@ def dish_facts(dish):
             f"{dish['cooking_time']} min · {dish['calories']} kcal · {dish['protein']} g protein")
 
 
-def show_recipe(dish):
-    """Show the recipe steps and the grocery list of a dish side by side."""
-    # AI-generated (Claude) - see AI_USE_LOG.md entry 7
+def show_recipe(dish, key):
+    """Show the recipe steps and the grocery list of a dish side by side.
+
+    For some meat dishes the user first chooses the doneness (well done ... rare),
+    and the recipe shows the core temperature the meat has to reach.
+    key: a short text that makes the doneness buttons unique on the page
+    """
+    # AI-generated (Claude) - see AI_USE_LOG.md entries 7 and 25
+    recipe = dish['recipe']
+
+    if dish['dish'] in DONENESS_DISHES:
+        meat, usual_doneness = DONENESS_DISHES[dish['dish']]
+        doneness = st.segmented_control('How do you like your meat?', DONENESS_OPTIONS,
+                                        default=usual_doneness, key=f"doneness_{key}_{dish['dish_id']}")
+        if doneness is None:        # the user clicked the selected button again
+            doneness = usual_doneness
+        core = CORE_TEMPERATURES[meat][doneness]
+        pull = core - 3             # the core temperature still rises by about 3 °C while the meat rests
+
+        if dish['dish'] in MINCED_MEAT_DISHES:
+            st.markdown(f'**Core temperature: {core} °C**')
+            if doneness != 'Well done':
+                st.caption('Minced meat is only safe to eat at 70 °C.')
+        else:
+            st.markdown(f'**Core temperature: {core} °C** · take the meat off the heat at {pull} °C')
+
+        # the recipe has the placeholders {core} and {pull} where the temperatures go
+        recipe = recipe.replace('{core}', f'{core} °C').replace('{pull}', f'{pull} °C')
+
     col_steps, col_groceries = st.columns(2, gap='large')
 
     with col_steps:
@@ -1130,7 +1242,7 @@ def show_recipe(dish):
         # and write them as a numbered list (markdown: '1. ...', '2. ...')
         steps_text = ''
         number = 1
-        for step in dish['recipe'].split(';'):
+        for step in recipe.split(';'):
             steps_text += f'{number}. {step}\n'
             number += 1
         st.markdown(steps_text)
@@ -1237,7 +1349,7 @@ def open_dish_window(dish, wine_type, wine_name, price, score):
         st.markdown(f"**Why it matches:** {get_why_text(wine_type, dish)}")
 
     st.divider()
-    show_recipe(dish)
+    show_recipe(dish, 'dialog')
 
 
 # ---------- data for the charts ------------------------------------------------
@@ -1630,7 +1742,7 @@ elif page == "I know what I'm cooking":
                 st.header(dish['dish'])
                 st.caption(dish_facts(dish))
                 with st.expander('Recipe & grocery list'):
-                    show_recipe(dish)
+                    show_recipe(dish, 'cooking')
 
             # right side: the 3 best wines with their match bar
             with col_wines:
@@ -1924,7 +2036,7 @@ elif page == 'Effortless evening':
                 if answers['guests'] != 4:
                     st.caption(f"The recipe serves 4 - for {answers['guests']} guests, "
                                f"multiply the amounts by {answers['guests'] / 4:.1f}.")
-                show_recipe(dish)
+                show_recipe(dish, 'evening')
 
         with col_wine:
             section_label('The wine')
@@ -2046,37 +2158,37 @@ elif page == 'My profile':
                     st.rerun()   # reload, so every page uses the new profile
 
     # ----- box 2: my recommendations (machine learning) --------------------
-    # AI-generated (Claude) - see AI_USE_LOG.md entry 23
-    # five dishes for the next meal, each one with its three best wines
+    # AI-generated (Claude) - see AI_USE_LOG.md entries 23 and 26
+    # five dishes for the next meal, each one with its three best wines.
+    # They are calculated once and kept in st.session_state, so saving or removing
+    # a wine does not change them. "Generate again" calculates new ones (and then
+    # also learns from the wines the user saved or removed in the meantime).
     if open_box == 'My recommendations':
         with st.container(border=True):
             st.markdown('<p class="eyebrow">Based on your preferences</p>', unsafe_allow_html=True)
             st.header('Your next meal')
             st.space('small')
 
-            with st.spinner('Loading'):
-                dish_tips = recommend_dishes(saved, PROFILE, 5)
-                my_taste = get_my_wine_taste(saved)
+            # calculate the recommendations the first time - and again if the profile changed
+            plan = st.session_state.get('next_meal')
+            if plan is None or plan['profile'] != describe_profile(PROFILE):
+                with st.spinner('Loading'):
+                    plan = plan_next_meals(saved, PROFILE, [])
+                st.session_state['next_meal'] = plan
 
-            # the budget per bottle: the most expensive saved bottle (CHF 30 if we do not know it)
-            budget = saved['price'].max()
-            if pd.isna(budget):
-                budget = 30
-
-            GREEK_LETTERS = ['α', 'β', 'γ', 'δ', 'ε']
-            if len(dish_tips) == 0:
+            if len(plan['meals']) == 0:
                 st.warning('No dish fits your dietary restrictions.')
 
-            number = 0
-            for index, dish in dish_tips.iterrows():
-                if number > 0:
+            number = 1
+            for meal in plan['meals']:
+                dish = DISHES[DISHES['dish_id'] == meal['dish_id']].iloc[0]
+                if number > 1:
                     st.divider()
-                col_letter, col_dish, col_wines = st.columns([1, 4, 9], gap='medium')
+                col_bottle, col_dish, col_wines = st.columns([1, 4, 9], gap='medium')
 
-                # the big greek letter
-                with col_letter:
-                    st.markdown(f'<div class="rec-letter">{GREEK_LETTERS[number]}</div>',
-                                unsafe_allow_html=True)
+                # the wine bottle with the number
+                with col_bottle:
+                    st.markdown(wine_bottle(number), unsafe_allow_html=True)
 
                 # the dish
                 with col_dish:
@@ -2084,15 +2196,15 @@ elif page == 'My profile':
                     st.markdown(f"**{dish['dish']}**")
                     st.caption(dish_facts(dish))
                     with st.expander('Recipe & grocery list'):
-                        show_recipe(dish)
+                        show_recipe(dish, 'tip')
 
-                # its three best wines, each with its match bar
+                # its three best wines, each with its match bar and a save / remove button
                 with col_wines:
                     wine_columns = st.columns(3, gap='small')
                     rank = 0
-                    for wine_index, wine in get_top_wines_for_dish(dish, 3).iterrows():
+                    for wine in meal['wines']:
                         wine_type = wine['wine_type']
-                        bottle = find_bottle_for_my_taste(wine_type, budget, dish, my_taste)
+                        bottle = wine['bottle']
                         with wine_columns[rank]:
                             with st.container(border=True):
                                 st.markdown(f'<p class="eyebrow">{wine_type}</p>', unsafe_allow_html=True)
@@ -2104,13 +2216,29 @@ elif page == 'My profile':
                                                f"{bottle['points']} points · CHF {bottle['price']:.0f}")
                                 show_match_bar(wine['score'])
                                 if bottle is not None:
-                                    if st.button('Save', icon=':material/favorite:', type='tertiary',
-                                                 key=f"tip_save_{dish['dish_id']}_{wine_type}"):
-                                        save_favorite(dish, wine_type, bottle['title'],
-                                                      float(bottle['price']), wine['score'])
-                                        st.success('Saved')
+                                    # is this dish with this bottle already in the favorites?
+                                    is_saved = ((saved['dish_id'] == meal['dish_id'])
+                                                & (saved['wine_name'] == bottle['title'])).any()
+                                    button_key = f"tip_save_{meal['dish_id']}_{wine_type}"
+                                    if is_saved:
+                                        if st.button('Saved', icon=':material/favorite:', type='tertiary',
+                                                     key=button_key):
+                                            remove_favorite(meal['dish_id'], bottle['title'])
+                                            st.rerun()
+                                    else:
+                                        if st.button('Save', icon=':material/favorite_border:', type='tertiary',
+                                                     key=button_key):
+                                            save_favorite(dish, wine_type, bottle['title'],
+                                                          float(bottle['price']), wine['score'])
+                                            st.rerun()
                         rank += 1
                 number += 1
+
+            st.space('medium')
+            if st.button('Generate again', icon=':material/refresh:', width='stretch'):
+                with st.spinner('Loading'):
+                    st.session_state['next_meal'] = plan_next_meals(saved, PROFILE, plan['shown'])
+                st.rerun()
 
     # ----- box 3: my favorites ---------------------------------------------
     if open_box == 'My favorites':
@@ -2136,7 +2264,7 @@ elif page == 'My profile':
                             st.rerun()   # reload the page so the removed pairing disappears
                     with st.expander('Recipe, grocery list & why it matches'):
                         st.markdown(f"**Why it matches:** {get_why_text(item['wine_type'], item)}")
-                        show_recipe(item)
+                        show_recipe(item, f"fav_{item['saved_id']}")
 
 
 # close the database connection (like at the end of the week 7 demo)
