@@ -174,6 +174,28 @@ Claude Code desktop app.
   time, started with a missing data file, and clicked through all four pages.
 - **What we checked / changed:** [...]
 
+## Entry 10 – Home page, navigation at the top and closed sidebar (AI-generated code)
+
+- **What we asked:** first a home page with a big picture, our logo and brand name, a short
+  description and the three options as cards. We did not like the first version, so we asked
+  for an elegant style like the website of a famous wine estate, and that the sidebar only opens
+  when you click on it and shows other information.
+- **What the AI changed in `streamlit_app.py`:**
+  - a new **Home** page: a picture over the whole width with "Wine & Dine" on it, a short
+    introduction, the three options (I, II, III) with a button each, and a dark band with our
+    numbers (70,000 wines, 60 dishes, 26 grape varieties)
+  - the pictures are read from the folder `images` (`images/hero.jpg` and `images/logo.png`) by
+    the new function `get_own_image()`. As long as they are missing, a dark background is shown.
+  - a **navigation bar at the top** of every page instead of the radio buttons in the sidebar.
+    The page is stored in `st.session_state['page']`, and the buttons change it with
+    `go_to_page()`.
+  - the **sidebar is closed** at the start (`initial_sidebar_state='collapsed'`) and now shows
+    information about the project, the match score and our data
+  - CSS rules for the navigation, the picture and the home page (in the STYLE block)
+- **How it was tested:** started the app without and with a test picture, took screenshots on a
+  laptop and a phone size, opened the sidebar and clicked the buttons (they open the right page).
+- **What we checked / changed:** [...]
+
 ## Entry 11 – Small fixes: dish photo and wine caption (AI-generated code)
 
 - **Prompt (summary):** "Remove the line 'We read this as a ...'" and "For the rack of lamb a raw
@@ -244,7 +266,114 @@ Claude Code desktop app.
   recommendation still works; a second click closes the box.
 - **What we checked / changed:** [...]
 
-## Entry 15 – "Your next meal": five dishes, each with its three best wines (AI-generated code)
+## Entry 15 – Bordeaux background, cards on the home page (AI-generated code)
+
+- **What we asked:** a bordeaux red background for the whole website, how to change the fonts,
+  remove the links "Find a wine", "Find a dish" and "Plan an evening" from the top bar, and show
+  the three options on the home page as white cards with square corners that lift up a little
+  when the mouse is over them.
+- **What the AI changed:**
+  - `.streamlit/config.toml`: dark theme with a bordeaux background (`#5C1A24`), light text and
+    a lighter gold; comments explain where the fonts are set
+  - `streamlit_app.py`: the colours in the STYLE block now fit the dark background (light text,
+    light match bar text, see-through message boxes); the top bar only has "Wine & Dine" (back to
+    Home) and "My profile"; the three options are white cards (CSS `transform: translateY` on
+    `:hover` lifts them up)
+- **How it was tested:** screenshots of the home page (with the mouse over a card), page 1 with a
+  dish and the profile page.
+- **What we checked / changed:** [...]
+
+## Entry 16 – Cream pages again, dark red home page with a "pouring wine" effect (AI-generated code)
+
+- **What we asked:** only the home page should be dark red like a good red wine (very dark), the
+  other pages cream again. We also asked if the page could stay cream after the picture and fill
+  up with red while scrolling down, as if wine was poured.
+- **What the AI changed:**
+  - `.streamlit/config.toml` and the STYLE block: back to the cream colours of entry 10
+  - `streamlit_app.py`, HOME PAGE: a CSS block with a fixed layer `wine-layer` (colour `#2A0810`)
+    whose height grows from 0 to the whole window while the user scrolls (CSS scroll-driven
+    animation: `scroll-timeline` and `animation-timeline`), with a moving wave on top. The texts
+    change from dark to light at the same time. Browsers without scroll animations show the
+    dark red page directly.
+- **How it was tested:** screenshots at six scroll positions, a short screen video, and page 1
+  (cream) after clicking a card.
+- **What we checked / changed:** [...]
+
+## Entry 17 – A more realistic "pouring wine" effect (AI-generated code)
+
+- **What we asked:** make the pouring more realistic, with bubbles or drops.
+- **What the AI changed in `streamlit_app.py` (HOME PAGE):** a thin wine stream that falls from
+  the top, trembles and gets shorter while the wine rises (it disappears when the page is full),
+  drops falling next to it, rings and small splashes where it hits the wine, two waves moving at
+  different speeds, a light line on the surface and bubbles rising in the wine. The bubbles,
+  drops and splashes are made in Python with `for` loops from small lists (position, size,
+  speed). People who switched off animations on their computer (`prefers-reduced-motion`) get
+  the wine without movement.
+- **How it was tested:** screenshots at four scroll positions and a short screen video.
+- **What we checked / changed:** [...]
+
+## Entry 18 – Back to the simple pouring, with realistic sloshing (AI-generated code)
+
+- **What we asked:** we liked the first, simple version (entry 16) more, but the wine should
+  move more realistically, like a glass that is being poured.
+- **What the AI changed in `streamlit_app.py` (HOME PAGE):** the stream, drops, splashes and
+  bubbles of entry 13 were removed. The wine now sloshes: while scrolling, the surface tilts left
+  and right, less and less (keyframes `slosh`, linked to the scrolling), and afterwards it sways a
+  little all the time (`sway`), with the wave bobbing up and down. The wine is wider and longer
+  than the window, so no corner shows when it tilts.
+- **How it was tested:** screenshots at several scroll positions and a short screen video.
+- **What we checked / changed:** [...]
+
+## Entry 19 – Irregular waves (AI-generated code)
+
+- **What we asked:** the waves looked too symmetric, and the whole surface moved up and down
+  in the same way.
+- **What the AI changed in `streamlit_app.py` (HOME PAGE):** the surface is now made of four
+  wave layers with irregular shapes (SVG paths) and different lengths. Each layer moves sideways
+  at its own speed and direction (`drift` with its own `--drift` distance) and grows and shrinks
+  in its own rhythm (`breathe`), so the surface never looks the same. While pouring, a big flat
+  wave pushes from side to side (`swell-slosh`) instead of tilting the whole surface; the tilt is
+  now much weaker. The title changes colour faster, so it is not grey for long.
+- **How it was tested:** a screen video and frames at five moments.
+- **What we checked / changed:** [...]
+
+## Entry 20 – Waves in one colour and stronger (AI-generated code)
+
+- **What we asked:** all wave layers in the same colour, and stronger waves.
+- **What the AI changed in `streamlit_app.py` (HOME PAGE):** the lighter, see-through wave layer
+  now has the colour of the wine like the others; all wave layers are about 1.5 times higher and
+  they grow and shrink more (`breathe` from 65 % to 135 % instead of 75 % to 120 %).
+- **How it was tested:** a screen video and frames at four moments.
+- **What we checked / changed:** [...]
+
+## Entry 21 – The wine only rises, more extreme waves (AI-generated code)
+
+- **What we asked:** at the start the wine went up, then down and up again, which we did not
+  like; and the waves should be more extreme.
+- **What the AI changed in `streamlit_app.py` (HOME PAGE):** the sloshing linked to the scrolling
+  (`slosh` and `swell-slosh`) was removed, so the wine level only rises. All wave layers are
+  higher again (100 to 150px) and grow and shrink more (`breathe` from 50 % to 150 %). At the
+  start the wine is pushed below the window, so the high waves do not show before the pouring.
+- **How it was tested:** a screen video, frames at five moments and a screenshot on a tall window.
+- **What we checked / changed:** [...]
+
+## Entry 22 – Slower pouring, waves in sync, text colour follows the wine (AI-generated code)
+
+- **What we asked:** keep everything, but the wine should rise a little slower and the waves
+  should move more in sync, so it looks natural.
+- **What the AI changed in `streamlit_app.py` (HOME PAGE):**
+  - the wine now rises over a longer scroll distance (`animation-range: 40vh min(130vh, 100%)`);
+    `min(..., 100%)` makes sure that the glass is also full on very tall screens
+  - all wave layers move in the same direction at a similar speed and grow and shrink in the
+    same 4-second rhythm (a little shifted with negative delays)
+  - the texts are light exactly where the wine is: a colour gradient fixed to the window
+    (`background-attachment: fixed`) shown only inside the letters (`background-clip: text`),
+    split at `--level`, a registered CSS property (`@property`) that moves exactly like the wine
+- **How it was tested:** measured on three window heights (800, 900, 1300 px) that the text is
+  light on the wine and dark on cream, screenshots while the wine passes the title, a screen video.
+- **What we checked / changed:** [...]
+
+## Entry 23 – "Your next meal": five dishes, each with its three best wines (AI-generated code)
 
 - **Prompt (summary):** "Under My recommendations the match line does not make sense anymore - what
   is it related to? I want: your next meal, based on your preferences, with 5 options and big greek
@@ -262,7 +391,7 @@ Claude Code desktop app.
   a vegan + low calorie profile (only vegan dishes), and saving a wine from a recommendation.
 - **What we checked / changed:** [...]
 
-## Entry 16 – "My dietary restrictions" and "In the mood for" (AI-generated code)
+## Entry 24 – "My dietary restrictions" and "In the mood for" (AI-generated code)
 
 - **Prompt (summary):** "In the profile remove 'My goals' completely and only keep Diet and Allergies,
   and call it My dietary restrictions. Under Find a dish remove '02 Anything you cannot eat' (it is in

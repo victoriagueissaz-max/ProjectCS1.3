@@ -1,0 +1,23 @@
+[theme]
+base = "light"
+primaryColor = "#9C8556"
+backgroundColor = "#FBF8F3"
+secondaryBackgroundColor = "#F2ECE2"
+textColor = "#1E1A16"
+borderColor = "#E2D9C8"
+linkColor = "#7A1F2B"
+baseRadius = "0.2rem"
+# the fonts: "Name:link to Google Fonts, fallback"
+# font = normal text, headingFont = titles (see README "How to change the colours and fonts")
+font = "Jost:https://fonts.googleapis.com/css2?family=Jost:wght@300;400;500&display=swap, sans-serif"
+headingFont = "Bodoni Moda:https://fonts.googleapis.com/css2?family=Bodoni+Moda:ital,opsz,wght@0,6..96,400;0,6..96,500;1,6..96,400&display=swap, serif"
+headingFontWeights = 400
+
+[theme.sidebar]
+backgroundColor = "#14110F"
+secondaryBackgroundColor = "#221D19"
+textColor = "#EDE5D6"
+borderColor = "#3A322B"
+
+[client]
+toolbarMode = "minimal"

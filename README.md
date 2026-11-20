@@ -56,6 +56,22 @@ repository, branch `main`, main file `streamlit_app.py` → Deploy.
 
 ---
 
+## How to change the colours and fonts
+
+Both are set in `.streamlit/config.toml`:
+- **Colours:** `backgroundColor` (the bordeaux background), `textColor`, `primaryColor` (gold).
+- **Fonts:** `font` is the normal text, `headingFont` the titles. Each one is written as
+  `"Name:link to Google Fonts, fallback"`. To use another font, choose it on
+  [fonts.google.com](https://fonts.google.com), click *Get font* → *Get embed code*, copy the
+  link that starts with `https://fonts.googleapis.com/css2?family=...` and replace the name and
+  the link, e.g. `font = "Lato:https://fonts.googleapis.com/css2?family=Lato:wght@300;400;700&display=swap, sans-serif"`.
+- **Dark red of the Home page:** `--wine: #2A0810` in the HOME PAGE part of `streamlit_app.py`
+  (the "pouring wine" effect while scrolling is explained in the comments there).
+- The big title on the Home page and a few labels use the heading font directly in the CSS of
+  `streamlit_app.py` (search for `'Bodoni Moda'` and replace it there too).
+
+---
+
 ## How the app meets the project requirements
 
 | # | Requirement | How Wine & Dine does it |

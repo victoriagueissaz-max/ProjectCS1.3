@@ -397,13 +397,13 @@ WINE_NICKNAMES = {
 # the options the user can choose from
 ALLERGY_OPTIONS = ['Gluten', 'Lactose', 'Eggs', 'Nuts', 'Fish', 'Shellfish', 'Soy']
 # 'In the mood for': what the user feels like today (the diet is set in the profile)
-# AI-generated (Claude) - see AI_USE_LOG.md entries 7 and 16
+# AI-generated (Claude) - see AI_USE_LOG.md entries 7 and 24
 MOOD_OPTIONS = ['Meat', 'Fish', 'Quick (under 40 min)', 'Low calorie', 'High protein',
                 'Starter', 'Main course', 'Dessert', 'Festive']
 COURSE_OF_MOOD = {'Starter': 'starter', 'Main course': 'main', 'Dessert': 'dessert'}
 
 # the options of the profile ("My dietary restrictions")
-# AI-generated (Claude) - see AI_USE_LOG.md entries 12 and 16
+# AI-generated (Claude) - see AI_USE_LOG.md entries 12 and 24
 DIET_OPTIONS = ['No restriction', 'Pescatarian', 'Vegetarian', 'Vegan']
 
 # which kinds of dishes (the 'diet' column of the dishes table) every diet may eat
@@ -498,27 +498,30 @@ st.markdown("""
     .home-section h2 { font-family: 'Bodoni Moda', serif; font-weight: 400; font-size: 2.6rem;
                        line-height: 1.2; margin: 1rem 0 1.5rem 0; }
     .home-section p.home-text { color: #6B6157; font-size: 1.1rem; font-weight: 300; line-height: 1.9; }
-    /* the three options */
-    [class*="st-key-home_option_"] { padding: 1rem 1.5rem 2rem 1.5rem; border-top: 1px solid #E2D9C8; }
-    .option-number { font-family: 'Bodoni Moda', serif; font-size: 3rem; color: #9C8556;
-                     font-style: italic; line-height: 1; }
-    .option-rule { width: 40px; height: 1px; background: #9C8556; margin: 1.4rem 0; }
-    .option-title { font-family: 'Bodoni Moda', serif; font-size: 1.7rem; margin-bottom: 1rem;
-                    color: #1E1A16; }
-    .option-text { color: #6B6157; font-weight: 300; line-height: 1.8; min-height: 6rem; }
-    [class*="st-key-home_option_"] button { border: 1px solid #1E1A16; border-radius: 0;
-                                            background: transparent; padding: 0.8rem 2rem; }
-    [class*="st-key-home_option_"] button p { text-transform: uppercase; letter-spacing: 0.25em;
-                                              font-size: 0.7rem; color: #1E1A16; }
-    [class*="st-key-home_option_"] button:hover { background: #1E1A16; }
-    [class*="st-key-home_option_"] button:hover p { color: #FBF8F3; }
+    /* the three options (AI_USE_LOG.md entry 15): white cards with square corners that lift up a little
+       when the mouse is over them ('transition' makes the movement smooth) */
+    [class*="st-key-home_option_"] { background: #FFFFFF; border-radius: 4px; padding: 2.6rem 2.2rem;
+                                     min-height: 340px; box-shadow: 0 6px 18px rgba(0, 0, 0, 0.18);
+                                     transition: transform 0.25s ease, box-shadow 0.25s ease; }
+    [class*="st-key-home_option_"]:hover { transform: translateY(-8px);
+                                           box-shadow: 0 16px 32px rgba(0, 0, 0, 0.30); }
+    .option-title { font-family: 'Bodoni Moda', serif; font-size: 1.8rem; line-height: 1.25;
+                    margin-bottom: 1.2rem; color: #7A1F2B; }
+    .option-text { color: #4A423B; font-weight: 300; font-size: 1.05rem; line-height: 1.8;
+                   min-height: 6rem; }
+    /* the button looks like an underlined link with an arrow */
+    [class*="st-key-home_option_"] button { border: none; border-bottom: 2px solid #C9A86A;
+                                            border-radius: 0; background: transparent;
+                                            padding: 0 0 2px 0; min-height: 0; }
+    [class*="st-key-home_option_"] button p { color: #7A1F2B; font-weight: 500; font-size: 1.05rem; }
+    [class*="st-key-home_option_"] button:hover p { color: #9C8556; }
     /* the three boxes on the profile page (AI-generated, see AI_USE_LOG.md entry 14) */
     [class*="st-key-profile_box_"] button { min-height: 140px; border: 1px solid #E2D9C8;
                                            border-radius: 2px; background: transparent; }
     [class*="st-key-profile_box_"] button p { font-family: 'Bodoni Moda', serif; font-size: 1.5rem;
                                              color: #1E1A16; }
     [class*="st-key-profile_box_"] button:hover { border-color: #9C8556; }
-    /* the big greek letters in "My recommendations" (AI-generated, see AI_USE_LOG.md entry 15) */
+    /* the big greek letters in "My recommendations" (AI-generated, see AI_USE_LOG.md entry 23) */
     .rec-letter { font-family: 'Bodoni Moda', serif; font-size: 4.5rem; color: #9C8556;
                   font-style: italic; line-height: 1; text-align: center; }
     /* the dark band with the numbers at the end of the home page */
@@ -684,7 +687,7 @@ def find_bottles(wine_type, max_price, dish, how_many):
     For a dessert we look for a sweet wine (e.g. 'Late Harvest'),
     for all other dishes we skip sweet wines.
     """
-    # AI-generated (Claude) - see AI_USE_LOG.md entries 7 and 15
+    # AI-generated (Claude) - see AI_USE_LOG.md entries 7 and 23
     # we build the SQL query step by step
     # the ? marks are placeholders - pandas fills in the values from 'params'
     # (this is safer than putting the values directly into the text,
@@ -715,7 +718,7 @@ def find_bottles(wine_type, max_price, dish, how_many):
 
 def find_best_bottle(wine_type, max_price, dish):
     """Return the best-rated real wine of one type that costs max_price or less (or None)."""
-    # AI-generated (Claude) - see AI_USE_LOG.md entries 7 and 15
+    # AI-generated (Claude) - see AI_USE_LOG.md entries 7 and 23
     bottles = find_bottles(wine_type, max_price, dish, 1)
     if len(bottles) == 0:
         return None
@@ -817,7 +820,7 @@ def fits_allergies(dish, allergies, other_allergies):
 
 def fits_preferences(dish, preferences, own_wish):
     """Return True if the dish fits the food preferences of the user."""
-    # AI-generated (Claude) - see AI_USE_LOG.md entries 7 and 16
+    # AI-generated (Claude) - see AI_USE_LOG.md entries 7 and 24
 
     # meat or fish: if the user chose one (or both), the dish must be one of them
     wanted_kinds = []
@@ -878,7 +881,7 @@ def load_profile():
     Returns a dictionary, e.g. {'diet': 'Vegetarian', 'allergies': ['Nuts']}
     If the user has not saved a profile yet, nothing is restricted.
     """
-    # AI-generated (Claude) - see AI_USE_LOG.md entries 12 and 16
+    # AI-generated (Claude) - see AI_USE_LOG.md entries 12 and 24
     cursor = DB.cursor()
     cursor.execute('SELECT diet, allergies FROM profile WHERE profile_id = 1')
     row = cursor.fetchone()    # one row as a tuple, or None if there is none
@@ -893,7 +896,7 @@ def load_profile():
 
 def save_profile(diet, allergies):
     """Save the dietary restrictions of the user in the database (replaces the old ones)."""
-    # AI-generated (Claude) - see AI_USE_LOG.md entries 12 and 16
+    # AI-generated (Claude) - see AI_USE_LOG.md entries 12 and 24
     # INSERT OR REPLACE: if the row with profile_id 1 already exists, it is overwritten
     # (the columns 'avoid' and 'goals' are no longer used - we leave them empty)
     cursor = DB.cursor()
@@ -911,7 +914,7 @@ def fits_diet(dish, diet):
 
 def get_profile_dishes(profile, with_allergies):
     """Return the dishes that fit the profile (the diet, and if with_allergies is True also the allergies)."""
-    # AI-generated (Claude) - see AI_USE_LOG.md entries 12 and 16
+    # AI-generated (Claude) - see AI_USE_LOG.md entries 12 and 24
     kept = []
     for index, dish in DISHES.iterrows():
         if not fits_diet(dish, profile['diet']):
@@ -971,7 +974,7 @@ def build_wine_taste_model():
     st.cache_resource: this runs only once (it takes a few seconds),
     afterwards Streamlit keeps the result in memory for all users.
     """
-    # AI-generated (Claude) - see AI_USE_LOG.md entries 13 and 15
+    # AI-generated (Claude) - see AI_USE_LOG.md entries 13 and 23
     # own connection: the result is shared between all users and page loads
     connection = sqlite3.connect(DATABASE_FILE)
     wines = pd.read_sql("""SELECT title, variety, country, province, winery, points, price, description
@@ -990,7 +993,7 @@ def build_wine_taste_model():
 
 def get_my_wine_taste(saved):
     """Return the user's wine taste: the average numbers of the wines they saved (or None)."""
-    # AI-generated (Claude) - see AI_USE_LOG.md entries 13 and 15
+    # AI-generated (Claude) - see AI_USE_LOG.md entries 13 and 23
     wines, taste_matrix, row_of_title = build_wine_taste_model()
 
     # which saved wines are in our table? (wines typed in by the user are not)
@@ -1007,7 +1010,7 @@ def find_bottle_for_my_taste(wine_type, max_price, dish, my_taste):
     tasting note is most similar to the wines the user saved (cosine similarity).
     Without a taste (nothing saved yet), the best-rated bottle wins.
     """
-    # AI-generated (Claude) - see AI_USE_LOG.md entry 15
+    # AI-generated (Claude) - see AI_USE_LOG.md entry 23
     bottles = find_bottles(wine_type, max_price, dish, 50)
     if len(bottles) == 0:
         return None
@@ -1027,7 +1030,7 @@ def recommend_dishes(saved, profile, how_many):
     Main courses come first. Among them, the dishes most similar to the dishes
     the user saved win. Without saved dishes we pick dishes that fit the profile.
     """
-    # AI-generated (Claude) - see AI_USE_LOG.md entries 13 and 15
+    # AI-generated (Claude) - see AI_USE_LOG.md entries 13 and 23
     # one text per dish: name, ingredients, course and diet
     dish_texts = (DISHES['dish'] + ' ' + DISHES['ingredients'].str.replace(';', ' ') + ' '
                   + DISHES['course'] + ' ' + DISHES['diet'])
@@ -1313,35 +1316,34 @@ def go_to_page(page_name):
 
 
 # ===========================================================================
-# TOP NAVIGATION: the brand name and the pages, at the top of every page
+# TOP NAVIGATION: the brand name and 'My profile', at the top of every page
 # ===========================================================================
 # AI-generated (Claude) - see AI_USE_LOG.md entry 10
 # The page the user is on is stored in st.session_state['page'], so Streamlit
 # remembers it between two clicks. At the very first start it is the home page.
-PAGES = ["I know what I'm cooking", 'I already have a wine', 'Effortless evening', 'My profile']
-NAV_LABELS = ['Find a wine', 'Find a dish', 'Plan an evening', 'My profile']   # short names for the links
 if 'page' not in st.session_state:
     st.session_state['page'] = 'Home'
 
+# the three main pages are opened with the cards on the home page,
+# so the navigation only has the brand name (back to Home) and 'My profile'
 with st.container(key='top_nav'):
-    col_brand, col_links = st.columns([1, 2], vertical_alignment='center')
+    col_brand, col_profile = st.columns([4, 1], vertical_alignment='center')
     with col_brand:
         st.button('Wine & Dine', key='nav_brand', type='tertiary',
                   on_click=go_to_page, args=['Home'])
-    with col_links:
-        link_columns = st.columns(len(PAGES))
-        for number in range(len(PAGES)):
-            with link_columns[number]:
-                st.button(NAV_LABELS[number], key=f'nav_{number}', type='tertiary',
-                          on_click=go_to_page, args=[PAGES[number]])
+    with col_profile:
+        st.button('My profile', key='nav_profile', type='tertiary',
+                  on_click=go_to_page, args=['My profile'])
 
 page = st.session_state['page']
 
-# the link of the page the user is on gets a thin golden line below it
-if page in PAGES:
-    active = PAGES.index(page)
-    st.markdown(f'<style>.st-key-nav_{active} button p {{ border-bottom: 1px solid #9C8556; '
-                f'color: #9C8556 !important; }}</style>', unsafe_allow_html=True)
+# when the user is on 'My profile', its link gets a thin golden line below it
+if page == 'My profile':
+    st.markdown('<style>.st-key-nav_profile button p { border-bottom: 1px solid #9C8556; '
+                'color: #9C8556 !important; }</style>', unsafe_allow_html=True)
+# the profile link stands at the right end of the bar
+st.markdown('<style>.st-key-nav_profile { display: flex; justify-content: flex-end; }</style>',
+            unsafe_allow_html=True)
 
 
 # ===========================================================================
@@ -1391,6 +1393,124 @@ if page == 'Home':
                 'padding-bottom: 0; } [data-testid="stMain"] { overflow-x: hidden; }</style>',
                 unsafe_allow_html=True)
 
+    # THE HOME PAGE IS DARK RED, LIKE A GOOD RED WINE - AI_USE_LOG.md entries 10 and 16 to 22
+    # After the picture the page is cream at first. While the user scrolls down, the red
+    # wine rises from the bottom of the window and fills it, as if a glass was poured.
+    # The wine level only rises (it never goes down again). The surface is made of
+    # strong, irregular waves, and the wine sways a little, as if somebody held the glass.
+    # This is done only with CSS (Streamlit does not run our own JavaScript):
+    # - 'scroll-timeline' gives the scrolling of the page a name (--pour)
+    # - 'animation-timeline: --pour' moves an animation with the scrolling instead of
+    #   with the time: not scrolled = empty glass, scrolled further = full glass
+    # - the light swaying is a normal animation that repeats all the time ('infinite')
+    # - the text is light exactly where the wine is, so it stays readable
+    # Browsers that do not know scroll animations yet simply show the dark red page.
+    st.markdown("""<style>
+:root { --wine: #2A0810; }
+/* without scroll animations: the whole page is dark red with light text */
+[data-testid="stMain"] { background: var(--wine); }
+.st-key-top_nav button p { color: #F5EDE0; }
+.st-key-top_nav { border-color: rgba(255, 255, 255, 0.15); }
+.home-section h2 { color: #F5EDE0; }
+.home-section p.home-text { color: #D8C6BC; }
+.home-section .eyebrow { color: #D9B77A; }
+.wine-layer { display: none; }
+
+@supports (animation-timeline: scroll()) {
+    /* the page itself is cream, and the scrolling gets the name --pour */
+    [data-testid="stMain"] { background: #FBF8F3; scroll-timeline: --pour block; }
+    .st-key-top_nav button p { color: #1E1A16; }
+    .st-key-top_nav { border-color: #E2D9C8; }
+    /* everything we show lies on top of the wine: the wine has z-index -1 inside
+       this container, so it is drawn behind all texts, cards and the picture */
+    [data-testid="stMainBlockContainer"] { position: relative; z-index: 1; }
+
+    /* THE WINE LEVEL: fixed at the bottom of the window. While scrolling, its height
+       grows from 0 to the whole window (always upwards, it never goes down again) */
+    .wine-layer { display: block; position: fixed; left: 0; right: 0; bottom: 0; z-index: -1;
+                  height: 0; pointer-events: none; transform-origin: 50% 0;
+                  animation: pour linear both; animation-timeline: --pour;
+                  animation-range: 40vh min(130vh, 100%); }
+    /* (the wine starts after 0.4 screens of scrolling and is full after 1.3 screens -
+        or at the end of the page, if the page is shorter on a very tall screen) */
+    /* THE WINE ITSELF: wider and longer than the window, so no corner shows when it tilts.
+       It also sways a little all the time, like a glass in somebody's hand. */
+    .wine-body { position: absolute; top: 0; left: -15vw; right: -15vw; bottom: -25vh;
+                 transform-origin: 50% 0;
+                 background: linear-gradient(180deg, #3B0C17, var(--wine) 40%);
+                 animation: sway 3.8s ease-in-out infinite alternate; }
+    /* THE SURFACE: four wave layers with irregular shapes and different lengths. They all
+       move in the same direction at a similar speed and grow and shrink in the same rhythm
+       (4 seconds, a little shifted with a negative delay), so they look like one natural
+       surface, but never exactly the same. All layers have the colour of the wine, so
+       together they make one surface. */
+    .surf { position: absolute; left: 0; right: 0; background-repeat: repeat-x;
+             transform-origin: 50% 100%; }
+    .surf-back { top: -128px; height: 140px; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1200 60' preserveAspectRatio='none'%3E%3Cpath d='M0 32 C90 24 200 20 300 27 S480 40 590 34 S760 18 880 24 S1080 38 1200 32 V60 H0Z' fill='%233B0C17'/%3E%3C/svg%3E");
+                  background-size: 1530px 140px;
+                  --drift: 1530px;
+                  animation: drift 26s linear infinite, breathe 4s ease-in-out -2s infinite alternate; }
+    .surf-swell { top: -138px; height: 150px; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1200 60' preserveAspectRatio='none'%3E%3Cpath d='M0 42 C250 42 420 18 640 20 S980 44 1200 42 V60 H0Z' fill='%233B0C17'/%3E%3C/svg%3E");
+                   background-size: 2600px 150px;
+                   --drift: 2600px;
+                   animation: drift 34s linear infinite, breathe 8s ease-in-out infinite alternate; }
+    .surf-1 { top: -118px; height: 130px; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1200 60' preserveAspectRatio='none'%3E%3Cpath d='M0 36 C70 30 140 24 230 29 S390 44 470 40 S600 22 700 27 S850 45 960 41 S1120 31 1200 36 V60 H0Z' fill='%233B0C17'/%3E%3C/svg%3E");
+               background-size: 1170px 130px;
+               --drift: 1170px;
+               animation: drift 20s linear infinite, breathe 4s ease-in-out infinite alternate; }
+    .surf-2 { top: -88px; height: 100px; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 1200 60' preserveAspectRatio='none'%3E%3Cpath d='M0 40 C50 37 110 33 180 36 S300 45 360 42 S470 33 560 35 S700 46 790 41 S930 34 1010 38 S1150 44 1200 40 V60 H0Z' fill='%233B0C17'/%3E%3C/svg%3E");
+               background-size: 790px 100px;
+               --drift: 790px;
+               animation: drift 16s linear infinite, breathe 4s ease-in-out -1s infinite alternate; }
+
+    /* THE TEXTS ARE LIGHT EXACTLY WHERE THE WINE IS: --level is the height of the wine
+       (it moves with the scrolling exactly like the wine). The text is filled with a
+       colour gradient that is fixed to the window ('background-attachment: fixed'):
+       light from the bottom of the window up to the wine level (+100px for the waves), dark above it.
+       'background-clip: text' shows this gradient only inside the letters. */
+    .home-section { animation: level linear both; animation-timeline: --pour;
+                    animation-range: 40vh min(130vh, 100%); }
+    .home-section h2, .home-section p.home-text {
+        color: transparent; -webkit-background-clip: text; background-clip: text;
+        background-attachment: fixed; }
+    .home-section h2 { background-image: linear-gradient(to top, #F5EDE0 calc(var(--level) + 100px),
+                                                         #1E1A16 calc(var(--level) + 100px)); }
+    .home-section p.home-text { background-image: linear-gradient(to top, #D8C6BC calc(var(--level) + 100px),
+                                                                  #6B6157 calc(var(--level) + 100px)); }
+}
+
+/* --level must be registered as a length, so the browser can animate it smoothly */
+@property --level { syntax: '<length>'; inherits: true; initial-value: 0px; }
+/* the same movement as the wine (height minus the 160px it is pushed down at the start) */
+@keyframes level {
+    0%   { --level: -160px; }
+    15%  { --level: 16.8vh; }
+    100% { --level: 112vh; }
+}
+
+/* people who switched off animations on their computer get the wine without swaying */
+@media (prefers-reduced-motion: reduce) {
+    .wine-body, .surf { animation: none !important; }
+}
+
+/* a little more than the whole window (112vh), so no cream shows at the top when the full wine sways */
+/* at the start the wine (with its high waves) is pushed 160px below the window, so nothing
+   shows before the pouring starts */
+@keyframes pour {
+    0%   { height: 0;     transform: translateY(160px); }
+    15%  {                transform: translateY(0); }
+    100% { height: 112vh; transform: translateY(0); }
+}
+/* the light swaying that never stops */
+@keyframes sway { from { transform: rotate(-0.7deg); } to { transform: rotate(0.7deg); } }
+/* the waves move to the side by exactly one wave length (--drift),
+   so the movement can start again without a jump */
+@keyframes drift { from { background-position-x: 0; } to { background-position-x: var(--drift); } }
+/* the waves get a little higher and lower */
+@keyframes breathe { from { transform: scaleY(0.5); } to { transform: scaleY(1.5); } }
+</style>
+<div class="wine-layer"><div class="wine-body"><div class="surf surf-back"></div><div class="surf surf-swell"></div><div class="surf surf-1"></div><div class="surf surf-2"></div></div></div>""", unsafe_allow_html=True)
+
     # the big picture - with a dark layer on it, so the white text is easy to read
     hero_image = get_own_image('hero')
     if hero_image != '':
@@ -1430,26 +1550,24 @@ if page == 'Home':
 
     # the three options - each one with a button that opens its page
     options = [
-        ['I', "I know what I'm cooking",
+        ["I know what I'm cooking",
          'Tell us what is on the menu and get the three best real wines, with a match score.',
-         'Find my wine'],
-        ['II', 'I already have a wine',
+         'Find my wine →'],
+        ['I already have a wine',
          'Tell us the bottle you have at home and discover the dishes that match it best.',
-         'Find a dish'],
-        ['III', 'Effortless evening',
+         'Find a dish →'],
+        ['Effortless evening',
          'Answer four quick questions and we plan the whole dinner: dish, wine and recipe.',
-         'Plan my evening'],
+         'Plan my evening →'],
     ]
     option_columns = st.columns(3, gap='large')
     for number in range(3):
-        roman_number, title, text, button_text = options[number]
+        title, text, button_text = options[number]
         with option_columns[number]:
             with st.container(key=f'home_option_{number}'):
-                st.markdown(f'<div class="option-number">{roman_number}</div>'
-                            f'<div class="option-rule"></div>'
-                            f'<div class="option-title">{title}</div>'
+                st.markdown(f'<div class="option-title">{title}</div>'
                             f'<p class="option-text">{text}</p>', unsafe_allow_html=True)
-                st.button(button_text, key=f'home_button_{number}',
+                st.button(button_text, key=f'home_button_{number}', type='tertiary',
                           on_click=go_to_page, args=[title])
 
     # a dark band with our numbers at the end of the page
@@ -1579,7 +1697,7 @@ elif page == 'I already have a wine':
     st.space('medium')
     # the diet and the allergies come from the profile, so here we only ask for the mood
     # (only the buttons that make sense for the diet, e.g. no 'Meat' for a vegetarian)
-    # AI-generated (Claude) - see AI_USE_LOG.md entry 16
+    # AI-generated (Claude) - see AI_USE_LOG.md entry 24
     mood_options = get_visible_options(MOOD_OPTIONS, HIDDEN_MOODS[PROFILE['diet']])
 
     section_label('02 · In the mood for')
@@ -1710,7 +1828,7 @@ elif page == 'Effortless evening':
             section_label('04 · Food preferences')
             st.subheader('Any wishes for the food?')
             # the evening is always a main course, so the course buttons are not shown
-            # AI-generated (Claude) - see AI_USE_LOG.md entry 16
+            # AI-generated (Claude) - see AI_USE_LOG.md entry 24
             hidden = HIDDEN_MOODS[PROFILE['diet']] + list(COURSE_OF_MOOD.keys())
             preferences = st.pills('Preferences', get_visible_options(MOOD_OPTIONS, hidden),
                                    selection_mode='multi', label_visibility='collapsed',
@@ -1928,7 +2046,7 @@ elif page == 'My profile':
                     st.rerun()   # reload, so every page uses the new profile
 
     # ----- box 2: my recommendations (machine learning) --------------------
-    # AI-generated (Claude) - see AI_USE_LOG.md entry 15
+    # AI-generated (Claude) - see AI_USE_LOG.md entry 23
     # five dishes for the next meal, each one with its three best wines
     if open_box == 'My recommendations':
         with st.container(border=True):
