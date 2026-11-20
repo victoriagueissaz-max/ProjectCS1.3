@@ -63,8 +63,8 @@ repository, branch `main`, main file `streamlit_app.py` → Deploy.
 | 1 | Clear problem | "Which wine goes with my dinner – and which dinner goes with my wine?" |
 | 2 | Data from an API / database | **Database:** all data comes from the SQLite database `wine_dine.db` (≈70,000 real wines, 60 dishes, 180 pairings), read with SQL (`SELECT`, `JOIN`, `GROUP BY`, `LIKE`) and written with `INSERT` / `DELETE` (saved pairings). **API:** the app gets the dish photos from the **Wikipedia API** when it builds its database |
 | 3 | Data visualization | The **match bars** (1–100, from dark green to orange), "Is a more expensive wine really better?" (% of top wines per price range) and "Where does the best wine come from?" (% of top wines per country) |
-| 4 | User interaction | Search bar with suggestions, wine search by name, year and producer, allergy and preference buttons, pop-up window with recipe, four-question planner with "Generate again", saving and removing pairings, a nutrition profile (diet, allergies, foods to avoid, goals) that filters every page |
-| 5 | Machine learning | **Recommendations on "My profile"** (scikit-learn): the tasting notes of all 70,000 wines and the ingredients of the 60 dishes are turned into numbers with **TF-IDF**; the user's taste is the average of the saved pairings, and **cosine similarity** finds the most similar wines and dishes (content-based recommendation). The match score `predict_match_score()` still uses simple rules |
+| 4 | User interaction | Search bar with suggestions, wine search by name, year and producer, "In the mood for" buttons, pop-up window with recipe, four-question planner with "Generate again", saving and removing pairings, a profile with dietary restrictions (diet, allergies) that filters every page |
+| 5 | Machine learning | **"Your next meal" on My profile** (scikit-learn, content-based recommendation): the ingredients of the 60 dishes and the tasting notes of all 70,000 wines are turned into numbers with **TF-IDF**. The user's taste is the average of their saved pairings; **cosine similarity** finds the five most similar dishes (within the dietary preferences) and, for each of their three best grapes, the bottle whose tasting note is closest to the saved wines. The match score `predict_match_score()` still uses simple rules |
 | 6 | Documented code | Every function has a docstring and every block has comments |
 
 ---
@@ -86,7 +86,7 @@ wine_styles (wine_type, color, body, taste)
 wines (title, variety, country, province, winery, points, price, description)
 
 favorites (saved_id, dish_id, wine_type, wine_name, price, score, saved_on)  – filled by the users
-profile (profile_id, diet, allergies, avoid, goals)                          – the user's nutrition requirements
+profile (profile_id, diet, allergies, avoid, goals)                          – the user's dietary restrictions (avoid and goals are no longer used)
 kaggle_pairings (wine_type, food_item, ...)                                  – cleaned Kaggle data, for the ML model
 ```
 

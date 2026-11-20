@@ -396,13 +396,15 @@ WINE_NICKNAMES = {
 
 # the options the user can choose from
 ALLERGY_OPTIONS = ['Gluten', 'Lactose', 'Eggs', 'Nuts', 'Fish', 'Shellfish', 'Soy']
-PREFERENCE_OPTIONS = ['Meat dish', 'Fish dish', 'Vegetarian', 'Vegan',
-                      'High protein', 'Low calorie', 'Quick (under 40 min)']
+# 'In the mood for': what the user feels like today (the diet is set in the profile)
+# AI-generated (Claude) - see AI_USE_LOG.md entries 7 and 16
+MOOD_OPTIONS = ['Meat', 'Fish', 'Quick (under 40 min)', 'Low calorie', 'High protein',
+                'Starter', 'Main course', 'Dessert', 'Festive']
+COURSE_OF_MOOD = {'Starter': 'starter', 'Main course': 'main', 'Dessert': 'dessert'}
 
-# the options of the profile ("My nutrition requirements")
-# AI-generated (Claude) - see AI_USE_LOG.md entry 12
+# the options of the profile ("My dietary restrictions")
+# AI-generated (Claude) - see AI_USE_LOG.md entries 12 and 16
 DIET_OPTIONS = ['No restriction', 'Pescatarian', 'Vegetarian', 'Vegan']
-GOAL_OPTIONS = ['High protein', 'Low calorie', 'Quick (under 40 min)']
 
 # which kinds of dishes (the 'diet' column of the dishes table) every diet may eat
 ALLOWED_DIETS = {
@@ -412,18 +414,12 @@ ALLOWED_DIETS = {
     'Vegan': ['vegan'],
 }
 # buttons that make no sense for a diet - we do not show them
-# (e.g. a vegetarian does not need a 'Meat dish' button or a fish allergy button)
-HIDDEN_PREFERENCES = {
+# (e.g. a vegetarian does not need a 'Meat' button)
+HIDDEN_MOODS = {
     'No restriction': [],
-    'Pescatarian': ['Meat dish'],
-    'Vegetarian': ['Meat dish', 'Fish dish'],
-    'Vegan': ['Meat dish', 'Fish dish', 'Vegetarian'],
-}
-HIDDEN_ALLERGIES = {
-    'No restriction': [],
-    'Pescatarian': [],
-    'Vegetarian': ['Fish', 'Shellfish'],
-    'Vegan': ['Fish', 'Shellfish', 'Eggs', 'Lactose'],
+    'Pescatarian': ['Meat'],
+    'Vegetarian': ['Meat', 'Fish'],
+    'Vegan': ['Meat', 'Fish'],
 }
 BUDGET_OPTIONS = {'Up to CHF 15': 15, 'Up to CHF 30': 30, 'Up to CHF 60': 60,
                   'Up to CHF 100': 100, 'No limit': 10000}
@@ -522,6 +518,9 @@ st.markdown("""
     [class*="st-key-profile_box_"] button p { font-family: 'Bodoni Moda', serif; font-size: 1.5rem;
                                              color: #1E1A16; }
     [class*="st-key-profile_box_"] button:hover { border-color: #9C8556; }
+    /* the big greek letters in "My recommendations" (AI-generated, see AI_USE_LOG.md entry 15) */
+    .rec-letter { font-family: 'Bodoni Moda', serif; font-size: 4.5rem; color: #9C8556;
+                  font-style: italic; line-height: 1; text-align: center; }
     /* the dark band with the numbers at the end of the home page */
     .home-band { width: 100vw; margin-left: calc(50% - 50vw); margin-top: 5rem; background: #14110F;
                  color: #EDE5D6; padding: 4.5rem 1rem; display: flex; justify-content: center;
@@ -679,13 +678,13 @@ def get_why_text(wine_type, dish):
 
 # ---------- finding wines in the database ----------------------------------
 
-def find_best_bottle(wine_type, max_price, dish):
-    """Return the best-rated real wine of one type that costs max_price or less (or None).
+def find_bottles(wine_type, max_price, dish, how_many):
+    """Return the best-rated real wines of one type that cost max_price or less (best first).
 
     For a dessert we look for a sweet wine (e.g. 'Late Harvest'),
     for all other dishes we skip sweet wines.
     """
-    # AI-generated (Claude) - see AI_USE_LOG.md entry 7
+    # AI-generated (Claude) - see AI_USE_LOG.md entries 7 and 15
     # we build the SQL query step by step
     # the ? marks are placeholders - pandas fills in the values from 'params'
     # (this is safer than putting the values directly into the text,
@@ -709,9 +708,15 @@ def find_best_bottle(wine_type, max_price, dish):
             params.append(f'%{word}%')
 
     # best rating first - if two wines have the same rating, the cheaper one first
-    sql += ' ORDER BY points DESC, price ASC LIMIT 1'
-    bottles = pd.read_sql(sql, DB, params=params)
+    sql += ' ORDER BY points DESC, price ASC LIMIT ?'
+    params.append(how_many)
+    return pd.read_sql(sql, DB, params=params)
 
+
+def find_best_bottle(wine_type, max_price, dish):
+    """Return the best-rated real wine of one type that costs max_price or less (or None)."""
+    # AI-generated (Claude) - see AI_USE_LOG.md entries 7 and 15
+    bottles = find_bottles(wine_type, max_price, dish, 1)
     if len(bottles) == 0:
         return None
     return bottles.iloc[0]
@@ -812,20 +817,26 @@ def fits_allergies(dish, allergies, other_allergies):
 
 def fits_preferences(dish, preferences, own_wish):
     """Return True if the dish fits the food preferences of the user."""
-    # AI-generated (Claude) - see AI_USE_LOG.md entry 7
+    # AI-generated (Claude) - see AI_USE_LOG.md entries 7 and 16
 
-    # the diet: if the user chose some diets, the dish must have one of them
-    allowed_diets = []
-    if 'Meat dish' in preferences:
-        allowed_diets.append('meat')
-    if 'Fish dish' in preferences:
-        allowed_diets.append('fish')
-    if 'Vegetarian' in preferences:
-        allowed_diets.append('vegetarian')
-        allowed_diets.append('vegan')       # vegan dishes are vegetarian too
-    if 'Vegan' in preferences:
-        allowed_diets.append('vegan')
-    if len(allowed_diets) > 0 and dish['diet'] not in allowed_diets:
+    # meat or fish: if the user chose one (or both), the dish must be one of them
+    wanted_kinds = []
+    if 'Meat' in preferences:
+        wanted_kinds.append('meat')
+    if 'Fish' in preferences:
+        wanted_kinds.append('fish')
+    if len(wanted_kinds) > 0 and dish['diet'] not in wanted_kinds:
+        return False
+
+    # the course: if the user chose some courses, the dish must be one of them
+    wanted_courses = []
+    for mood in preferences:
+        if mood in COURSE_OF_MOOD:
+            wanted_courses.append(COURSE_OF_MOOD[mood])
+    if len(wanted_courses) > 0 and dish['course'] not in wanted_courses:
+        return False
+
+    if 'Festive' in preferences and dish['occasion'] != 'festive':
         return False
 
     # the other wishes must all be true
@@ -864,32 +875,31 @@ def filter_dishes(dishes, allergies, other_allergies, preferences, own_wish):
 def load_profile():
     """Read the nutrition requirements of the user from the database.
 
-    Returns a dictionary, e.g.
-    {'diet': 'Vegetarian', 'allergies': ['Nuts'], 'avoid': 'mushrooms', 'goals': ['Low calorie']}
+    Returns a dictionary, e.g. {'diet': 'Vegetarian', 'allergies': ['Nuts']}
     If the user has not saved a profile yet, nothing is restricted.
     """
-    # AI-generated (Claude) - see AI_USE_LOG.md entry 12
+    # AI-generated (Claude) - see AI_USE_LOG.md entries 12 and 16
     cursor = DB.cursor()
-    cursor.execute('SELECT diet, allergies, avoid, goals FROM profile WHERE profile_id = 1')
+    cursor.execute('SELECT diet, allergies FROM profile WHERE profile_id = 1')
     row = cursor.fetchone()    # one row as a tuple, or None if there is none
 
     if row is None:
-        return {'diet': 'No restriction', 'allergies': [], 'avoid': '', 'goals': []}
+        return {'diet': 'No restriction', 'allergies': []}
 
     # 'Gluten;Nuts' -> ['Gluten', 'Nuts']  ('' -> [])
     allergies = [item for item in row[1].split(';') if item != '']
-    goals = [item for item in row[3].split(';') if item != '']
-    return {'diet': row[0], 'allergies': allergies, 'avoid': row[2], 'goals': goals}
+    return {'diet': row[0], 'allergies': allergies}
 
 
-def save_profile(diet, allergies, avoid, goals):
-    """Save the nutrition requirements of the user in the database (replaces the old ones)."""
-    # AI-generated (Claude) - see AI_USE_LOG.md entry 12
+def save_profile(diet, allergies):
+    """Save the dietary restrictions of the user in the database (replaces the old ones)."""
+    # AI-generated (Claude) - see AI_USE_LOG.md entries 12 and 16
     # INSERT OR REPLACE: if the row with profile_id 1 already exists, it is overwritten
+    # (the columns 'avoid' and 'goals' are no longer used - we leave them empty)
     cursor = DB.cursor()
     cursor.execute("""INSERT OR REPLACE INTO profile (profile_id, diet, allergies, avoid, goals)
-                      VALUES (1, ?, ?, ?, ?)""",
-                   (diet, ';'.join(allergies), avoid.strip(), ';'.join(goals)))
+                      VALUES (1, ?, ?, '', '')""",
+                   (diet, ';'.join(allergies)))
     DB.commit()
 
 
@@ -900,17 +910,13 @@ def fits_diet(dish, diet):
 
 
 def get_profile_dishes(profile, with_allergies):
-    """Return the dishes that fit the profile.
-
-    with_allergies: True  = also leave out dishes with the user's allergies and avoided foods
-                    False = only check the diet (for pages where the user can change the allergies)
-    """
-    # AI-generated (Claude) - see AI_USE_LOG.md entry 12
+    """Return the dishes that fit the profile (the diet, and if with_allergies is True also the allergies)."""
+    # AI-generated (Claude) - see AI_USE_LOG.md entries 12 and 16
     kept = []
     for index, dish in DISHES.iterrows():
         if not fits_diet(dish, profile['diet']):
             continue
-        if with_allergies and not fits_allergies(dish, profile['allergies'], profile['avoid']):
+        if with_allergies and not fits_allergies(dish, profile['allergies'], ''):
             continue
         kept.append(dish)
     return pd.DataFrame(kept, columns=DISHES.columns)
@@ -923,17 +929,13 @@ def get_visible_options(options, hidden):
 
 
 def describe_profile(profile):
-    """Return a short text about the profile, e.g. 'Vegetarian · no nuts, gluten · low calorie'."""
+    """Return a short text about the profile, e.g. 'Vegetarian · no nuts, gluten'."""
     # AI-generated (Claude) - see AI_USE_LOG.md entry 12
     parts = []
     if profile['diet'] != 'No restriction':
         parts.append(profile['diet'])
     if len(profile['allergies']) > 0:
         parts.append('no ' + ', '.join(profile['allergies']).lower())
-    if profile['avoid'] != '':
-        parts.append('avoids ' + profile['avoid'])
-    if len(profile['goals']) > 0:
-        parts.append(', '.join(profile['goals']).lower())
 
     if len(parts) == 0:
         return 'no restrictions'
@@ -964,11 +966,12 @@ KITCHEN_WORDS = ['tbsp', 'tsp', 'bunch', 'pinch', 'cloves', 'clove', 'large', 's
 def build_wine_taste_model():
     """Learn the taste of all wines from their tasting notes (TF-IDF).
 
-    Returns the wines table and a matrix with one row of numbers per wine.
+    Returns the wines table, a matrix with one row of numbers per wine, and a
+    dictionary {title of a wine: its row in the matrix}.
     st.cache_resource: this runs only once (it takes a few seconds),
     afterwards Streamlit keeps the result in memory for all users.
     """
-    # AI-generated (Claude) - see AI_USE_LOG.md entry 13
+    # AI-generated (Claude) - see AI_USE_LOG.md entries 13 and 15
     # own connection: the result is shared between all users and page loads
     connection = sqlite3.connect(DATABASE_FILE)
     wines = pd.read_sql("""SELECT title, variety, country, province, winery, points, price, description
@@ -978,40 +981,53 @@ def build_wine_taste_model():
     # min_df=5: ignore words that appear in fewer than 5 tasting notes (typos, names)
     vectorizer = TfidfVectorizer(stop_words='english', min_df=5, max_features=10000)
     taste_matrix = vectorizer.fit_transform(wines['description'])
-    return wines, taste_matrix
+
+    row_of_title = {}
+    for row_number, title in enumerate(wines['title']):
+        row_of_title[title] = row_number
+    return wines, taste_matrix, row_of_title
 
 
-def recommend_wines(saved, how_many):
-    """Return the wines whose tasting notes are most similar to the wines the user saved.
+def get_my_wine_taste(saved):
+    """Return the user's wine taste: the average numbers of the wines they saved (or None)."""
+    # AI-generated (Claude) - see AI_USE_LOG.md entries 13 and 15
+    wines, taste_matrix, row_of_title = build_wine_taste_model()
 
-    saved is the table of saved pairings (it needs the column 'wine_name').
+    # which saved wines are in our table? (wines typed in by the user are not)
+    rows = [row_of_title[title] for title in saved['wine_name'] if title in row_of_title]
+    if len(rows) == 0:
+        return None
+    return np.asarray(taste_matrix[rows].mean(axis=0))
+
+
+def find_bottle_for_my_taste(wine_type, max_price, dish, my_taste):
+    """Return the bottle of a wine type that fits the user's taste best (or None).
+
+    We take the 50 best-rated bottles within the budget and choose the one whose
+    tasting note is most similar to the wines the user saved (cosine similarity).
+    Without a taste (nothing saved yet), the best-rated bottle wins.
     """
-    # AI-generated (Claude) - see AI_USE_LOG.md entry 13
-    wines, taste_matrix = build_wine_taste_model()
+    # AI-generated (Claude) - see AI_USE_LOG.md entry 15
+    bottles = find_bottles(wine_type, max_price, dish, 50)
+    if len(bottles) == 0:
+        return None
+    if my_taste is None:
+        return bottles.iloc[0]
 
-    # which wines did the user save? (wines typed in by the user are not in our table)
-    is_saved = wines['title'].isin(saved['wine_name']).values
-    if is_saved.sum() == 0:
-        return wines.head(0)      # an empty table: we know none of the saved wines
-
-    # the user's taste = the average of the saved wines, then compare it with every wine
-    my_taste = np.asarray(taste_matrix[is_saved].mean(axis=0))
-    similarity = cosine_similarity(my_taste, taste_matrix)[0]
-
-    # the model also learns the budget: at most 1.5 times the most expensive saved bottle
-    max_price = wines[is_saved]['price'].max() * 1.5
-    keep = (~is_saved) & (wines['price'] <= max_price).values
-
-    candidates = wines[keep].copy()
-    candidates['similarity'] = similarity[keep]
-    # one wine per producer, so the list is not five times the same winery
-    candidates = candidates.sort_values('similarity', ascending=False).drop_duplicates('winery')
-    return candidates.head(how_many)
+    wines, taste_matrix, row_of_title = build_wine_taste_model()
+    rows = [row_of_title[title] for title in bottles['title']]
+    bottles['similarity'] = cosine_similarity(my_taste, taste_matrix[rows])[0]
+    return bottles.sort_values('similarity', ascending=False).iloc[0]
 
 
 def recommend_dishes(saved, profile, how_many):
-    """Return the dishes most similar to the dishes the user saved (and that fit the profile)."""
-    # AI-generated (Claude) - see AI_USE_LOG.md entry 13
+    """Return the dishes for the user's next meal (best first).
+
+    Only dishes that fit the diet and the allergies of the profile.
+    Main courses come first. Among them, the dishes most similar to the dishes
+    the user saved win. Without saved dishes we pick dishes that fit the profile.
+    """
+    # AI-generated (Claude) - see AI_USE_LOG.md entries 13 and 15
     # one text per dish: name, ingredients, course and diet
     dish_texts = (DISHES['dish'] + ' ' + DISHES['ingredients'].str.replace(';', ' ') + ' '
                   + DISHES['course'] + ' ' + DISHES['diet'])
@@ -1021,32 +1037,23 @@ def recommend_dishes(saved, profile, how_many):
     dish_matrix = vectorizer.fit_transform(dish_texts)
 
     is_saved = DISHES['dish_id'].isin(saved['dish_id']).values
-    my_taste = np.asarray(dish_matrix[is_saved].mean(axis=0))
-    similarity = cosine_similarity(my_taste, dish_matrix)[0]
+    if is_saved.sum() > 0:
+        my_taste = np.asarray(dish_matrix[is_saved].mean(axis=0))
+        similarity = cosine_similarity(my_taste, dish_matrix)[0]
+    else:
+        # nothing saved yet: a random order that stays the same for the whole day
+        similarity = np.random.default_rng(date.today().toordinal()).random(len(DISHES))
 
-    # only dishes the user did not save yet, and that fit the diet and allergies
-    allowed = DISHES['dish_id'].isin(get_profile_dishes(profile, with_allergies=True)['dish_id']).values
-    keep = (~is_saved) & allowed
+    # the dishes that fit the diet and the allergies, and are not saved yet
+    allowed = get_profile_dishes(profile, with_allergies=True)
+    candidates = DISHES.copy()
+    candidates['similarity'] = similarity
+    candidates = candidates[candidates['dish_id'].isin(allowed['dish_id']) & ~is_saved]
 
-    candidates = DISHES[keep].copy()
-    candidates['similarity'] = similarity[keep]
-    return candidates.sort_values('similarity', ascending=False).head(how_many)
-
-
-def choose_wine_for_dish(dish, saved):
-    """Return (wine type, score) for a recommended dish.
-
-    If the grape the user saves most often goes well with the dish (score 75 or more),
-    we take it - otherwise the best grape for the dish.
-    """
-    # AI-generated (Claude) - see AI_USE_LOG.md entry 13
-    favourite_grape = saved['wine_type'].mode()[0]
-    favourite_score = predict_match_score(favourite_grape, dish)
-    if favourite_score >= 75:
-        return favourite_grape, favourite_score
-
-    best = get_top_wines_for_dish(dish, 1).iloc[0]
-    return best['wine_type'], best['score']
+    # main courses first, then the most similar dishes
+    candidates['is_main'] = candidates['course'] == 'main'
+    candidates = candidates.sort_values(['is_main', 'similarity'], ascending=[False, False])
+    return candidates.head(how_many)
 
 
 # ---------- saving -----------------------------------------------------------
@@ -1570,27 +1577,15 @@ elif page == 'I already have a wine':
     my_wine = ask_for_wine('wine', True)
 
     st.space('medium')
-    # the buttons that make sense for the diet of the profile, and the ones that
-    # are selected from the start (default=...) because they are in the profile
-    # AI-generated (Claude) - see AI_USE_LOG.md entry 12
-    allergy_options = get_visible_options(ALLERGY_OPTIONS, HIDDEN_ALLERGIES[PROFILE['diet']])
-    preference_options = get_visible_options(PREFERENCE_OPTIONS, HIDDEN_PREFERENCES[PROFILE['diet']])
-    allergy_defaults = [item for item in PROFILE['allergies'] if item in allergy_options]
-    preference_defaults = [item for item in PROFILE['goals'] if item in preference_options]
+    # the diet and the allergies come from the profile, so here we only ask for the mood
+    # (only the buttons that make sense for the diet, e.g. no 'Meat' for a vegetarian)
+    # AI-generated (Claude) - see AI_USE_LOG.md entry 16
+    mood_options = get_visible_options(MOOD_OPTIONS, HIDDEN_MOODS[PROFILE['diet']])
 
-    section_label('02 · Anything you cannot eat?')
-    col_allergies, col_other = st.columns(2, gap='large')
-    with col_allergies:
-        allergies = st.pills('Allergies and intolerances', allergy_options, default=allergy_defaults,
-                             selection_mode='multi', width='stretch', wrap=True)
-    with col_other:
-        other_allergies = st.text_input('Anything else? (separate with commas)', value=PROFILE['avoid'])
-
-    st.space('medium')
-    section_label('03 · What do you feel like?')
+    section_label('02 · In the mood for')
     col_preferences, col_wish = st.columns(2, gap='large')
     with col_preferences:
-        preferences = st.pills('Preferences', preference_options, default=preference_defaults,
+        preferences = st.pills('In the mood for', mood_options, label_visibility='collapsed',
                                selection_mode='multi', width='stretch', wrap=True)
     with col_wish:
         own_wish = st.text_input('Or in your own words')
@@ -1599,9 +1594,9 @@ elif page == 'I already have a wine':
 
     if my_wine is not None:
         wine_type = my_wine['wine_type']
-        # the diet of the profile always counts; the allergies are the ones selected above
-        suitable = filter_dishes(get_profile_dishes(PROFILE, with_allergies=False),
-                                 allergies, other_allergies, preferences, own_wish)
+        # the dishes that fit the profile (diet and allergies) and the mood
+        suitable = filter_dishes(get_profile_dishes(PROFILE, with_allergies=True),
+                                 [], '', preferences, own_wish)
 
         if len(suitable) == 0:
             st.warning('No dish fits all your wishes. Try removing one of them.')
@@ -1714,11 +1709,12 @@ elif page == 'Effortless evening':
 
             section_label('04 · Food preferences')
             st.subheader('Any wishes for the food?')
-            # only the buttons that make sense for the diet; the goals of the profile are preselected
-            preference_options = get_visible_options(PREFERENCE_OPTIONS, HIDDEN_PREFERENCES[PROFILE['diet']])
-            preferences = st.pills('Preferences', preference_options, selection_mode='multi',
-                                   default=[item for item in PROFILE['goals'] if item in preference_options],
-                                   label_visibility='collapsed', width='stretch', wrap=True)
+            # the evening is always a main course, so the course buttons are not shown
+            # AI-generated (Claude) - see AI_USE_LOG.md entry 16
+            hidden = HIDDEN_MOODS[PROFILE['diet']] + list(COURSE_OF_MOOD.keys())
+            preferences = st.pills('Preferences', get_visible_options(MOOD_OPTIONS, hidden),
+                                   selection_mode='multi', label_visibility='collapsed',
+                                   width='stretch', wrap=True)
             own_preference = st.text_input('Or in your own words', key='own_preference')
             st.space('large')
 
@@ -1857,7 +1853,7 @@ elif page == 'Effortless evening':
 
 
 # ===========================================================================
-# PAGE 4: My profile  (three boxes: dietary preferences, recommendations, favorites)
+# PAGE 4: My profile  (three boxes: dietary restrictions, recommendations, favorites)
 # ===========================================================================
 # AI-generated (Claude) - see AI_USE_LOG.md entries 7, 12 and 13
 elif page == 'My profile':
@@ -1877,7 +1873,7 @@ elif page == 'My profile':
     # every box shows only its title. A click opens its content below the boxes,
     # a second click closes it again. The open box is stored in st.session_state.
     # AI-generated (Claude) - see AI_USE_LOG.md entry 14
-    BOX_TITLES = ['My dietary preferences', 'My recommendations', 'My favorites']
+    BOX_TITLES = ['My dietary restrictions', 'My recommendations', 'My favorites']
     BOX_ICONS = [':material/restaurant:', ':material/auto_awesome:', ':material/favorite:']
     if 'profile_box' not in st.session_state:
         st.session_state['profile_box'] = None
@@ -1904,10 +1900,10 @@ elif page == 'My profile':
                     f'background: #F3ECDF !important; }}</style>', unsafe_allow_html=True)
         st.space('small')
 
-    # ----- box 1: my dietary preferences -----------------------------------
+    # ----- box 1: my dietary restrictions ----------------------------------
     # st.form groups the fields: nothing happens until the user clicks "Save"
     # (otherwise Streamlit would reload the page after every single click)
-    if open_box == 'My dietary preferences':
+    if open_box == 'My dietary restrictions':
         with st.container(border=True):
 
             if st.session_state.get('profile_saved', False):
@@ -1918,75 +1914,85 @@ elif page == 'My profile':
                 diet = st.segmented_control('Diet', DIET_OPTIONS, default=PROFILE['diet'], width='stretch')
                 st.space('small')
 
-                col_allergies, col_avoid = st.columns(2, gap='large')
-                with col_allergies:
-                    allergies = st.pills('Allergies and intolerances', ALLERGY_OPTIONS,
-                                         default=PROFILE['allergies'], selection_mode='multi',
-                                         width='stretch', wrap=True)
-                with col_avoid:
-                    avoid = st.text_input('Other foods I do not eat', value=PROFILE['avoid'])
-                st.space('small')
-
-                goals = st.pills('My goals', GOAL_OPTIONS, default=PROFILE['goals'],
-                                 selection_mode='multi', width='stretch', wrap=True)
+                allergies = st.pills('Allergies and intolerances', ALLERGY_OPTIONS,
+                                     default=PROFILE['allergies'], selection_mode='multi',
+                                     width='stretch', wrap=True)
                 st.space('small')
 
                 if st.form_submit_button('Save', type='primary', icon=':material/check:'):
                     # if the user clicked the selected diet again, nothing is selected -> no restriction
                     if diet is None:
                         diet = 'No restriction'
-                    save_profile(diet, allergies, avoid, goals)
+                    save_profile(diet, allergies)
                     st.session_state['profile_saved'] = True
                     st.rerun()   # reload, so every page uses the new profile
 
     # ----- box 2: my recommendations (machine learning) --------------------
+    # AI-generated (Claude) - see AI_USE_LOG.md entry 15
+    # five dishes for the next meal, each one with its three best wines
     if open_box == 'My recommendations':
         with st.container(border=True):
+            st.markdown('<p class="eyebrow">Based on your preferences</p>', unsafe_allow_html=True)
+            st.header('Your next meal')
+            st.space('small')
 
-            if len(saved) == 0:
-                st.caption('Save a few pairings to get recommendations.')
-            else:
-                with st.spinner('Loading'):
-                    dish_tips = recommend_dishes(saved, PROFILE, 3)
-                    wine_tips = recommend_wines(saved, 3)
-                # the budget for the wine of a recommended dish: the most expensive saved bottle
-                budget = saved['price'].max()
-                if pd.isna(budget):
-                    budget = 30
+            with st.spinner('Loading'):
+                dish_tips = recommend_dishes(saved, PROFILE, 5)
+                my_taste = get_my_wine_taste(saved)
 
-                col_dishes, col_wines = st.columns(2, gap='large')
+            # the budget per bottle: the most expensive saved bottle (CHF 30 if we do not know it)
+            budget = saved['price'].max()
+            if pd.isna(budget):
+                budget = 30
 
-                with col_dishes:
-                    section_label('Dishes')
-                    for index, dish in dish_tips.iterrows():
-                        wine_type, score = choose_wine_for_dish(dish, saved)
-                        bottle = find_best_bottle(wine_type, budget, dish)
-                        with st.container(border=True):
-                            col_photo, col_name, col_button = st.columns([1, 3, 1], vertical_alignment='center')
-                            with col_photo:
-                                show_dish_photo(dish, 80)
-                            with col_name:
-                                st.markdown(f"**{dish['dish']}** · {wine_type}")
-                                show_match_bar(score)
-                            with col_button:
-                                if st.button('Open', key=f"tip_{dish['dish_id']}", icon=':material/menu_book:'):
-                                    if bottle is None:
-                                        open_dish_window(dish, wine_type, wine_type, None, score)
-                                    else:
-                                        open_dish_window(dish, wine_type, bottle['title'],
-                                                         float(bottle['price']), score)
+            GREEK_LETTERS = ['α', 'β', 'γ', 'δ', 'ε']
+            if len(dish_tips) == 0:
+                st.warning('No dish fits your dietary restrictions.')
 
+            number = 0
+            for index, dish in dish_tips.iterrows():
+                if number > 0:
+                    st.divider()
+                col_letter, col_dish, col_wines = st.columns([1, 4, 9], gap='medium')
+
+                # the big greek letter
+                with col_letter:
+                    st.markdown(f'<div class="rec-letter">{GREEK_LETTERS[number]}</div>',
+                                unsafe_allow_html=True)
+
+                # the dish
+                with col_dish:
+                    show_dish_photo(dish, 170)
+                    st.markdown(f"**{dish['dish']}**")
+                    st.caption(dish_facts(dish))
+                    with st.expander('Recipe & grocery list'):
+                        show_recipe(dish)
+
+                # its three best wines, each with its match bar
                 with col_wines:
-                    section_label('Wines')
-                    if len(wine_tips) == 0:
-                        st.caption('Save a wine from our database to get wine recommendations.')
-                    for index, wine in wine_tips.iterrows():
-                        with st.container(border=True):
-                            st.markdown(f"**{wine['title']}**")
-                            st.caption(f"{wine['variety']} · {wine['province']}, {wine['country']} · "
-                                       f"{wine['points']} points · CHF {wine['price']:.0f}")
-                            with st.expander('Sommelier notes'):
-                                st.write(wine['description'])
+                    wine_columns = st.columns(3, gap='small')
+                    rank = 0
+                    for wine_index, wine in get_top_wines_for_dish(dish, 3).iterrows():
+                        wine_type = wine['wine_type']
+                        bottle = find_bottle_for_my_taste(wine_type, budget, dish, my_taste)
+                        with wine_columns[rank]:
+                            with st.container(border=True):
+                                st.markdown(f'<p class="eyebrow">{wine_type}</p>', unsafe_allow_html=True)
+                                if bottle is None:
+                                    st.caption('No bottle within your budget')
+                                else:
+                                    st.markdown(f"**{bottle['title']}**")
+                                    st.caption(f"{bottle['province']}, {bottle['country']} · "
+                                               f"{bottle['points']} points · CHF {bottle['price']:.0f}")
+                                show_match_bar(wine['score'])
+                                if bottle is not None:
+                                    if st.button('Save', icon=':material/favorite:', type='tertiary',
+                                                 key=f"tip_save_{dish['dish_id']}_{wine_type}"):
+                                        save_favorite(dish, wine_type, bottle['title'],
+                                                      float(bottle['price']), wine['score'])
+                                        st.success('Saved')
+                        rank += 1
+                number += 1
 
     # ----- box 3: my favorites ---------------------------------------------
     if open_box == 'My favorites':

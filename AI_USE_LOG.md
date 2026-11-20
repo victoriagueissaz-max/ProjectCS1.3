@@ -244,6 +244,45 @@ Claude Code desktop app.
   recommendation still works; a second click closes the box.
 - **What we checked / changed:** [...]
 
+## Entry 15 – "Your next meal": five dishes, each with its three best wines (AI-generated code)
+
+- **Prompt (summary):** "Under My recommendations the match line does not make sense anymore - what
+  is it related to? I want: your next meal, based on your preferences, with 5 options and big greek
+  letters, each dish paired directly with the 3 best wines, and the 0-100 match line under each wine."
+- **What the AI changed:**
+  - The box shows five dishes (α to ε). Each dish has its photo, facts and recipe, and next to it
+    its three best grapes (`get_top_wines_for_dish`) with a real bottle, the match bar and a Save button.
+  - `recommend_dishes()` now also uses the goals of the profile and puts main courses first. Without
+    saved pairings it picks dishes that fit the profile (in an order that stays the same for a day).
+  - New: `find_bottles()` (several bottles; `find_best_bottle()` now uses it), `get_my_wine_taste()`
+    and `find_bottle_for_my_taste()`: of the 50 best-rated bottles of a grape within the budget,
+    the one whose tasting note is most similar to the saved wines is shown (cosine similarity).
+  - Removed `recommend_wines()` and `choose_wine_for_dish()` (no longer needed).
+- **How it was tested:** with `AppTest`: nothing saved (5 dishes, 3 wines each), two saved pairings,
+  a vegan + low calorie profile (only vegan dishes), and saving a wine from a recommendation.
+- **What we checked / changed:** [...]
+
+## Entry 16 – "My dietary restrictions" and "In the mood for" (AI-generated code)
+
+- **Prompt (summary):** "In the profile remove 'My goals' completely and only keep Diet and Allergies,
+  and call it My dietary restrictions. Under Find a dish remove '02 Anything you cannot eat' (it is in
+  the profile now), keep only 'What do you feel like', call it 'In the mood for' and give more options
+  (quick, low calorie, ...) but without vegetarian and vegan, since that is in the profile."
+- **What the AI changed:**
+  - Profile box 1 is now *My dietary restrictions* with only *Diet* and *Allergies and intolerances*.
+    "Other foods I do not eat" and "My goals" were removed (`load_profile()` / `save_profile()` only
+    use diet and allergies; the old database columns stay empty).
+  - "Find a dish": the allergy section was removed - the diet and allergies of the profile are always
+    applied. "02 · In the mood for" offers `MOOD_OPTIONS`: Meat, Fish, Quick, Low calorie, High protein,
+    Starter, Main course, Dessert, Festive (Meat / Fish are hidden if the diet does not allow them).
+    `fits_preferences()` now also filters by course and festive occasion.
+  - "Effortless evening": the same mood buttons, without Vegetarian / Vegan and without the course
+    buttons (the evening is always a main course).
+- **How it was tested:** with `AppTest`: all pages; saving a vegetarian + gluten profile; "Find a dish"
+  with a Merlot showed 15 dishes without meat, fish or gluten; "Quick + Dessert" showed only quick
+  desserts; the mood buttons with and without a profile.
+- **What we checked / changed:** [...]
+
 ---
 
 ## Reflection for the video (to fill in at the end of the project)
