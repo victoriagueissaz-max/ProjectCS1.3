@@ -32,6 +32,7 @@ from datetime import date       # to remember the day a pairing was saved
 import os                       # to work with file paths (where are our files?)
 import time                     # to wait a moment between two requests to Wikipedia
 import requests                 # to ask the Wikipedia API for the dish photos
+import base64                   # to put our own pictures (hero image, logo) into the home page
 
 
 # set some configurations of our app (like in the week 4 dice demo)
@@ -40,7 +41,7 @@ st.set_page_config(
     page_title='Wine & Dine',
     page_icon=':wine_glass:',
     layout='wide',
-    initial_sidebar_state='expanded',
+    initial_sidebar_state='collapsed',   # the sidebar opens only when the user clicks on it
 )
 
 # ===========================================================================
@@ -59,6 +60,14 @@ if os.path.exists(os.path.join(APP_FOLDER, 'data')):
     DATA_FOLDER = os.path.join(APP_FOLDER, 'data')
 else:
     DATA_FOLDER = APP_FOLDER
+
+# our own pictures for the home page (big picture at the top and our logo)
+# AI-generated (Claude) - see AI_USE_LOG.md entry 10
+# put them into the folder 'images' with these names - .jpg, .jpeg or .png all work:
+#   images/hero.jpg   the big picture at the top of the home page
+#   images/logo.png   our logo
+# as long as a picture is missing, the home page shows a dark red background / no logo
+IMAGE_FOLDER = os.path.join(APP_FOLDER, 'images')
 
 # the data files the app needs (they are in the folder 'data')
 DATA_FILES = ['winemag-data-130k-v2.csv.zip', 'wine_food_pairings.csv',
@@ -375,6 +384,67 @@ st.markdown("""
     .dish-photo { width: 100%; object-fit: cover; border-radius: 2px; margin-bottom: 1rem; }
     /* thin golden line between sections */
     hr { border-color: #E2D9C8 !important; }
+
+    /* ---------- top navigation and home page (AI-generated, see AI_USE_LOG.md entry 10) ---------- */
+    /* Streamlit's own bar at the top: transparent, so it does not cover our navigation */
+    [data-testid="stHeader"] { background: transparent; }
+    /* the navigation bar at the top of every page */
+    .st-key-top_nav { border-bottom: 1px solid #E2D9C8; padding-bottom: 0.6rem; margin-bottom: 0.5rem; }
+    .st-key-top_nav button { border: none; background: transparent; padding: 0.2rem 0; }
+    .st-key-top_nav button p { text-transform: uppercase; letter-spacing: 0.18em; font-size: 0.72rem;
+                               color: #1E1A16; font-weight: 400; }
+    .st-key-top_nav button:hover p { color: #9C8556; }
+    .st-key-nav_brand button p { font-family: 'Bodoni Moda', serif; text-transform: none;
+                                 letter-spacing: 0.02em; font-size: 1.6rem; }
+
+    /* the big picture: as wide as the whole window ("full-bleed") and almost as high */
+    .hero { width: 100vw; margin-left: calc(50% - 50vw); height: 86vh; min-height: 520px;
+            background-size: cover; background-position: center; display: flex;
+            align-items: center; justify-content: center; text-align: center; color: #FBF8F3; }
+    .hero-logo { height: 80px; margin-bottom: 1.6rem; }
+    .hero-eyebrow { letter-spacing: 0.45em; font-size: 0.75rem; text-transform: uppercase;
+                    color: #E5D3A8; }
+    .hero-title { font-family: 'Bodoni Moda', serif; font-size: clamp(3rem, 8vw, 6.5rem);
+                  font-weight: 400; line-height: 1.05; margin: 1.2rem 0; color: #FBF8F3; }
+    .hero-rule { width: 70px; height: 1px; background: #E5D3A8; margin: 0 auto 1.4rem auto; }
+    .hero-text { font-size: 1.1rem; font-weight: 300; max-width: 520px; margin: 0 auto;
+                 color: #EDE5D6; }
+    .hero-scroll { margin-top: 3.5rem; letter-spacing: 0.35em; font-size: 0.65rem;
+                   text-transform: uppercase; color: #E5D3A8; }
+    /* the calm sections below the picture: centred, with a lot of white space */
+    .home-section { text-align: center; max-width: 760px; margin: 0 auto; padding: 7rem 1rem 4rem 1rem; }
+    .home-section h2 { font-family: 'Bodoni Moda', serif; font-weight: 400; font-size: 2.6rem;
+                       line-height: 1.2; margin: 1rem 0 1.5rem 0; }
+    .home-section p.home-text { color: #6B6157; font-size: 1.1rem; font-weight: 300; line-height: 1.9; }
+    /* the three options */
+    [class*="st-key-home_option_"] { padding: 1rem 1.5rem 2rem 1.5rem; border-top: 1px solid #E2D9C8; }
+    .option-number { font-family: 'Bodoni Moda', serif; font-size: 3rem; color: #9C8556;
+                     font-style: italic; line-height: 1; }
+    .option-rule { width: 40px; height: 1px; background: #9C8556; margin: 1.4rem 0; }
+    .option-title { font-family: 'Bodoni Moda', serif; font-size: 1.7rem; margin-bottom: 1rem;
+                    color: #1E1A16; }
+    .option-text { color: #6B6157; font-weight: 300; line-height: 1.8; min-height: 6rem; }
+    [class*="st-key-home_option_"] button { border: 1px solid #1E1A16; border-radius: 0;
+                                            background: transparent; padding: 0.8rem 2rem; }
+    [class*="st-key-home_option_"] button p { text-transform: uppercase; letter-spacing: 0.25em;
+                                              font-size: 0.7rem; color: #1E1A16; }
+    [class*="st-key-home_option_"] button:hover { background: #1E1A16; }
+    [class*="st-key-home_option_"] button:hover p { color: #FBF8F3; }
+    /* the dark band with the numbers at the end of the home page */
+    .home-band { width: 100vw; margin-left: calc(50% - 50vw); margin-top: 5rem; background: #14110F;
+                 color: #EDE5D6; padding: 4.5rem 1rem; display: flex; justify-content: center;
+                 gap: 6rem; flex-wrap: wrap; text-align: center; }
+    .band-number { font-family: 'Bodoni Moda', serif; font-size: 2.8rem; color: #E5D3A8; }
+    .band-label { letter-spacing: 0.3em; font-size: 0.68rem; text-transform: uppercase; color: #B9AE9C; }
+    /* the information in the side bar (it only opens when the user clicks on it) */
+    .side-title { color: #9C8556 !important; letter-spacing: 0.3em; font-size: 0.68rem !important;
+                  text-transform: uppercase; margin: 2rem 0 0.4rem 0 !important; }
+    /* on phones: smaller sections */
+    @media (max-width: 640px) {
+        .home-section { padding: 4rem 0.5rem 2rem 0.5rem; }
+        .home-section h2 { font-size: 2rem; }
+        .home-band { gap: 2.5rem; }
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -928,31 +998,181 @@ def get_top_wines_by_country(wine_type):
                 """, DB, params=[wine_type])
 
 
+# ---------- the home page ----------------------------------------------------
+
+def get_own_image(name):
+    """Return one of our own pictures (e.g. 'hero' or 'logo') so HTML can show it, or '' if it is missing.
+
+    The picture is put directly into the HTML text ("base64" turns the bytes of
+    the file into letters). This way it works on our laptops and online.
+    """
+    # AI-generated (Claude) - see AI_USE_LOG.md entry 10
+    for ending, image_type in [('jpg', 'jpeg'), ('jpeg', 'jpeg'), ('png', 'png')]:
+        path = os.path.join(IMAGE_FOLDER, f'{name}.{ending}')
+        if os.path.exists(path):
+            with open(path, 'rb') as file:
+                letters = base64.b64encode(file.read()).decode()
+            return f'data:image/{image_type};base64,{letters}'
+    return ''
+
+
+def go_to_page(page_name):
+    """Switch to another page (used by the navigation and the buttons on the home page).
+
+    The page the user is on is stored in st.session_state['page']. Changing it
+    here selects another page. We call this function with on_click, so it runs
+    before Streamlit draws the page again.
+    """
+    # AI-generated (Claude) - see AI_USE_LOG.md entry 10
+    st.session_state['page'] = page_name
+
+
 # ===========================================================================
-# SIDEBAR: the name of the app and the navigation
+# TOP NAVIGATION: the brand name and the pages, at the top of every page
 # ===========================================================================
-# AI-generated (Claude) - see AI_USE_LOG.md entry 7
+# AI-generated (Claude) - see AI_USE_LOG.md entry 10
+# The page the user is on is stored in st.session_state['page'], so Streamlit
+# remembers it between two clicks. At the very first start it is the home page.
+PAGES = ["I know what I'm cooking", 'I already have a wine', 'Effortless evening', 'My profile']
+NAV_LABELS = ['Find a wine', 'Find a dish', 'Plan an evening', 'My profile']   # short names for the links
+if 'page' not in st.session_state:
+    st.session_state['page'] = 'Home'
+
+with st.container(key='top_nav'):
+    col_brand, col_links = st.columns([1, 2], vertical_alignment='center')
+    with col_brand:
+        st.button('Wine & Dine', key='nav_brand', type='tertiary',
+                  on_click=go_to_page, args=['Home'])
+    with col_links:
+        link_columns = st.columns(len(PAGES))
+        for number in range(len(PAGES)):
+            with link_columns[number]:
+                st.button(NAV_LABELS[number], key=f'nav_{number}', type='tertiary',
+                          on_click=go_to_page, args=[PAGES[number]])
+
+page = st.session_state['page']
+
+# the link of the page the user is on gets a thin golden line below it
+if page in PAGES:
+    active = PAGES.index(page)
+    st.markdown(f'<style>.st-key-nav_{active} button p {{ border-bottom: 1px solid #9C8556; '
+                f'color: #9C8556 !important; }}</style>', unsafe_allow_html=True)
+
+
+# ===========================================================================
+# SIDEBAR: more information about Wine & Dine
+# ===========================================================================
+# AI-generated (Claude) - see AI_USE_LOG.md entries 7 and 10
+# The sidebar is closed when the app starts (initial_sidebar_state='collapsed'
+# in st.set_page_config). It opens when the user clicks the arrow at the top left.
 
 st.sidebar.markdown('<div class="brand">Wine<br>&amp; Dine</div>'
                     '<div class="brand-line">The art of pairing</div>', unsafe_allow_html=True)
-st.sidebar.space('medium')
 
-page = st.sidebar.radio(
-    'Navigation',
-    ["I know what I'm cooking", 'I already have a wine', 'Effortless evening', 'My profile'],
-    label_visibility='collapsed',
-)
+st.sidebar.markdown('<p class="side-title">About us</p>', unsafe_allow_html=True)
+st.sidebar.markdown('Wine & Dine helps you find the right wine for your dinner – and the right '
+                    'dinner for your wine. A group project for *Fundamentals and Methods of '
+                    'Computer Science* at the University of St. Gallen (HSG), autumn 2026.')
 
-st.sidebar.space('large')
-st.sidebar.caption('Wines: 70,000 reviews from Wine Enthusiast (Kaggle). '
-                   'Photos: Wikipedia. Prices in Swiss francs (converted from US dollars).')
+st.sidebar.markdown('<p class="side-title">How the match works</p>', unsafe_allow_html=True)
+st.sidebar.markdown('Every wine gets a match score from 1 to 100 for a dish. It looks at the '
+                    'colour and body of the wine and at classic pairing rules – for example, '
+                    'fresh acidity with tomatoes or sweet wine with dessert.')
+
+st.sidebar.markdown('<p class="side-title">Our data</p>', unsafe_allow_html=True)
+st.sidebar.markdown('70,000 real wines from *Wine Enthusiast* reviews (Kaggle), 60 dishes with '
+                    'recipes, 26 grape varieties. Dish photos: Wikipedia. Prices in Swiss francs '
+                    '(converted from US dollars).')
+
+st.sidebar.markdown('<p class="side-title">Please enjoy responsibly</p>', unsafe_allow_html=True)
+st.sidebar.markdown('Wine & Dine is for adults of legal drinking age.')
+
+
+# ===========================================================================
+# HOME PAGE: big picture, short introduction, the three options
+# ===========================================================================
+# AI-generated (Claude) - see AI_USE_LOG.md entry 10
+if page == 'Home':
+
+    # on the home page the picture starts right below the navigation
+    st.markdown('<style>[data-testid="stMainBlockContainer"] { padding-top: 2.5rem; '
+                'padding-bottom: 0; } [data-testid="stMain"] { overflow-x: hidden; }</style>',
+                unsafe_allow_html=True)
+
+    # the big picture - with a dark layer on it, so the white text is easy to read
+    hero_image = get_own_image('hero')
+    if hero_image != '':
+        background = (f"linear-gradient(rgba(20, 17, 15, 0.20), rgba(20, 17, 15, 0.50)), "
+                      f"url('{hero_image}')")
+    else:
+        background = 'linear-gradient(160deg, #2A1A15, #14110F)'   # until we have the picture
+
+    # our logo above the title (only if the file exists)
+    logo_image = get_own_image('logo')
+    if logo_image != '':
+        logo_html = f'<img src="{logo_image}" class="hero-logo"><br>'
+    else:
+        logo_html = ''
+
+    # (the HTML is written without spaces at the start of the lines - otherwise
+    # st.markdown would show it as a block of code instead of using it)
+    st.markdown(f'<div class="hero" style="background-image: {background};"><div>'
+                f'{logo_html}'
+                f'<div class="hero-eyebrow">The art of pairing</div>'
+                f'<div class="hero-title">Wine &amp; Dine</div>'
+                f'<div class="hero-rule"></div>'
+                f'<p class="hero-text">The right wine for your dinner – '
+                f'and the right dinner for your wine.</p>'
+                f'<div class="hero-scroll">Discover &darr;</div>'
+                f'</div></div>', unsafe_allow_html=True)
+
+    # the short introduction
+    st.markdown('<div class="home-section">'
+                '<p class="eyebrow">Our idea</p>'
+                '<h2>Every dinner deserves the right bottle</h2>'
+                '<p class="home-text">Planning a nice dinner but not sure which wine goes with it? '
+                'Wine &amp; Dine finds the perfect match from 70,000 real wines – for the dish you '
+                'are cooking, for the bottle you already have, or for a whole evening. '
+                'We tell you where the wine comes from, how it tastes and why it fits.</p>'
+                '</div>', unsafe_allow_html=True)
+
+    # the three options - each one with a button that opens its page
+    options = [
+        ['I', "I know what I'm cooking",
+         'Tell us what is on the menu and get the three best real wines, with a match score.',
+         'Find my wine'],
+        ['II', 'I already have a wine',
+         'Tell us the bottle you have at home and discover the dishes that match it best.',
+         'Find a dish'],
+        ['III', 'Effortless evening',
+         'Answer four quick questions and we plan the whole dinner: dish, wine and recipe.',
+         'Plan my evening'],
+    ]
+    option_columns = st.columns(3, gap='large')
+    for number in range(3):
+        roman_number, title, text, button_text = options[number]
+        with option_columns[number]:
+            with st.container(key=f'home_option_{number}'):
+                st.markdown(f'<div class="option-number">{roman_number}</div>'
+                            f'<div class="option-rule"></div>'
+                            f'<div class="option-title">{title}</div>'
+                            f'<p class="option-text">{text}</p>', unsafe_allow_html=True)
+                st.button(button_text, key=f'home_button_{number}',
+                          on_click=go_to_page, args=[title])
+
+    # a dark band with our numbers at the end of the page
+    st.markdown('<div class="home-band">'
+                '<div><div class="band-number">70,000</div><div class="band-label">real wines</div></div>'
+                '<div><div class="band-number">60</div><div class="band-label">dishes with recipes</div></div>'
+                '<div><div class="band-number">26</div><div class="band-label">grape varieties</div></div>'
+                '</div>', unsafe_allow_html=True)
 
 
 # ===========================================================================
 # PAGE 1: I know what I'm cooking  (dish -> 3 wines)
 # ===========================================================================
 # AI-generated (Claude) - see AI_USE_LOG.md entry 7
-if page == "I know what I'm cooking":
+elif page == "I know what I'm cooking":
     page_header('Find the wine', "I know what I'm cooking",
                 'Tell us what is on the menu, and we will open the right bottle.')
 
