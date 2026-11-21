@@ -531,6 +531,16 @@ Claude Code desktop app.
   README updated.
 - **What we checked / changed:** [...]
 
+## Entry 32 – Sidebar sections as drop-downs (AI-generated code)
+
+- **Prompt (summary):** "In the sidebar only the titles should be visible; the text should appear as a
+  drop-down only when we click on the title."
+- **What the AI changed:** each sidebar section (About us, How the match works, Our data, Please enjoy
+  responsibly, Your profile) is now an `st.sidebar.expander` instead of a title plus text. CSS makes the
+  expander titles look like the old golden titles (small, uppercase, wide letter spacing) with a thin
+  line between them.
+- **What we checked / changed:** [...]
+
 ---
 
 ## Reflection for the video (to fill in at the end of the project)

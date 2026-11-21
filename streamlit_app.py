@@ -575,6 +575,13 @@ st.markdown("""
     /* the information in the side bar (it only opens when the user clicks on it) */
     .side-title { color: #9C8556 !important; letter-spacing: 0.3em; font-size: 0.68rem !important;
                   text-transform: uppercase; margin: 2rem 0 0.4rem 0 !important; }
+    /* the sections in the side bar are drop-downs: only the title is visible until the user
+       clicks on it (AI-generated, see AI_USE_LOG.md entry 32) */
+    [data-testid="stSidebar"] [data-testid="stExpander"] details { border: none;
+                  border-bottom: 1px solid rgba(156, 133, 86, 0.35); border-radius: 0; }
+    [data-testid="stSidebar"] [data-testid="stExpander"] summary { padding-left: 0; padding-right: 0; }
+    [data-testid="stSidebar"] [data-testid="stExpander"] summary p { color: #9C8556 !important;
+                  letter-spacing: 0.3em; font-size: 0.68rem !important; text-transform: uppercase; }
     /* on phones: smaller sections */
     @media (max-width: 640px) {
         .home-section { padding: 4rem 0.5rem 2rem 0.5rem; }
@@ -1516,30 +1523,30 @@ st.markdown('<style>.st-key-nav_profile { display: flex; justify-content: flex-e
 st.sidebar.markdown('<div class="brand">Wine<br>&amp; Dine</div>'
                     '<div class="brand-line">The art of pairing</div>', unsafe_allow_html=True)
 
-st.sidebar.markdown('<p class="side-title">About us</p>', unsafe_allow_html=True)
-st.sidebar.markdown('Wine & Dine helps you find the right wine for your dinner – and the right '
-                    'dinner for your wine. A group project for *Fundamentals and Methods of '
-                    'Computer Science* at the University of St. Gallen (HSG), autumn 2026.')
+with st.sidebar.expander('About us'):
+    st.markdown('Wine & Dine helps you find the right wine for your dinner – and the right '
+                'dinner for your wine. A group project for *Fundamentals and Methods of '
+                'Computer Science* at the University of St. Gallen (HSG), autumn 2026.')
 
-st.sidebar.markdown('<p class="side-title">How the match works</p>', unsafe_allow_html=True)
-st.sidebar.markdown('Every wine gets a match score from 1 to 100 for a dish. It looks at the '
-                    'colour and body of the wine and at classic pairing rules – for example, '
-                    'fresh acidity with tomatoes or sweet wine with dessert.')
+with st.sidebar.expander('How the match works'):
+    st.markdown('Every wine gets a match score from 1 to 100 for a dish. It looks at the '
+                'colour and body of the wine and at classic pairing rules – for example, '
+                'fresh acidity with tomatoes or sweet wine with dessert.')
 
-st.sidebar.markdown('<p class="side-title">Our data</p>', unsafe_allow_html=True)
-st.sidebar.markdown('70,000 real wines from *Wine Enthusiast* reviews (Kaggle), 60 dishes with '
-                    'recipes, 26 grape varieties. Dish photos: Wikipedia. Prices in Swiss francs '
-                    '(converted from US dollars).')
+with st.sidebar.expander('Our data'):
+    st.markdown('70,000 real wines from *Wine Enthusiast* reviews (Kaggle), 60 dishes with '
+                'recipes, 26 grape varieties. Dish photos: Wikipedia. Prices in Swiss francs '
+                '(converted from US dollars).')
 
-st.sidebar.markdown('<p class="side-title">Please enjoy responsibly</p>', unsafe_allow_html=True)
-st.sidebar.markdown('Wine & Dine is for adults of legal drinking age.')
+with st.sidebar.expander('Please enjoy responsibly'):
+    st.markdown('Wine & Dine is for adults of legal drinking age.')
 
 
 # the nutrition requirements of the user - every page filters with them
 # AI-generated (Claude) - see AI_USE_LOG.md entry 12
 PROFILE = load_profile()
-st.sidebar.markdown('<p class="side-title">Your profile</p>', unsafe_allow_html=True)
-st.sidebar.markdown(describe_profile(PROFILE).capitalize() + ' – change it under *My profile*.')
+with st.sidebar.expander('Your profile'):
+    st.markdown(describe_profile(PROFILE).capitalize() + ' – change it under *My profile*.')
 
 
 # ===========================================================================
